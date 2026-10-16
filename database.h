@@ -241,6 +241,46 @@ public:
         return ok;
     }
 
+    // Overwrites every editable field of an existing task. Status and
+    // timestamps are left alone; marking complete has its own method.
+    bool updateTask(const Task& t) {
+        const char* sql =
+            "UPDATE tasks SET title = ?, description = ?, category = ?, "
+            "priority = ?, difficulty = ?, energy_required = ?, "
+            "estimated_time = ?, min_time = ?, is_mandatory = ?, deadline = ? "
+            "WHERE task_id = ?;";
+
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
+            return false;
+        }
+
+        sqlite3_bind_text(stmt, 1, t.title.c_str(), -1, SQLITE_TRANSIENT);
+        if (t.description.empty()) sqlite3_bind_null(stmt, 2);
+        else sqlite3_bind_text(stmt, 2, t.description.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 3, t.category.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int (stmt, 4, t.priority);
+        sqlite3_bind_int (stmt, 5, t.difficulty);
+        sqlite3_bind_int (stmt, 6, t.energyRequired);
+        sqlite3_bind_int (stmt, 7, t.estimatedTime);
+        sqlite3_bind_int (stmt, 8, t.minTime);
+        sqlite3_bind_int (stmt, 9, t.isMandatory ? 1 : 0);
+        if (t.deadline.empty()) sqlite3_bind_null(stmt, 10);
+        else sqlite3_bind_text(stmt, 10, t.deadline.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int (stmt, 11, t.id);
+
+        bool ok = (sqlite3_step(stmt) == SQLITE_DONE);
+        if (!ok) std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
+        sqlite3_finalize(stmt);
+
+        if (ok && sqlite3_changes(db) == 0) {
+            std::cout << "No task with id " << t.id << "\n";
+            return false;
+        }
+        return ok;
+    }
+
     std::vector<Task> getAllTasks() {
         return runTaskQuery(
             "SELECT task_id, title, description, category, priority, difficulty, "

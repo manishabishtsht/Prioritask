@@ -11,6 +11,7 @@
 #include "database.h"
 #include "scheduler.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdio>
 #include <ctime>
@@ -140,6 +141,87 @@ std::string readTime(const std::string& prompt)
     }
 }
 
+// "2026-10-07 18:00" or "2026-10-07" with a real calendar date and time.
+// Rejects things like "2026-02-30", "2026-13-01", "25:00", or trailing junk.
+bool isValidDeadline(const std::string& s)
+{
+    int y = 0, mo = 0, d = 0, h = 0, mi = 0, used = 0;
+
+    int n = std::sscanf(s.c_str(), "%d-%d-%d %d:%d%n", &y, &mo, &d, &h, &mi, &used);
+    if (n == 5) {
+        if (used != static_cast<int>(s.size())) return false;
+    } else {
+        used = 0;
+        n = std::sscanf(s.c_str(), "%d-%d-%d%n", &y, &mo, &d, &used);
+        if (n != 3 || used != static_cast<int>(s.size())) return false;
+        h = 23; mi = 59;
+    }
+
+    if (y < 2000 || y > 2100 || mo < 1 || mo > 12) return false;
+    if (h < 0 || h > 23 || mi < 0 || mi > 59)       return false;
+
+    static const int daysIn[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    bool leap = (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
+    int maxDay = daysIn[mo - 1] + ((mo == 2 && leap) ? 1 : 0);
+    return d >= 1 && d <= maxDay;
+}
+
+// Asks for a deadline until it's valid or blank.
+//   Adding:  blank means "no deadline".
+//   Editing: blank keeps `current`, and "-" clears it.
+std::string readDeadline(bool editing, const std::string& current)
+{
+    std::string prompt = editing
+        ? "Deadline YYYY-MM-DD HH:MM [" + (current.empty() ? std::string("none") : current) +
+          "] (- to clear): "
+        : "Deadline YYYY-MM-DD HH:MM (blank for none): ";
+
+    while (true) {
+        std::string s = readLine(prompt);
+        if (s.empty())             return editing ? current : "";
+        if (editing && s == "-")   return "";
+        if (isValidDeadline(s))    return s;
+        std::cout << "  Not a valid date. Use 2026-10-20 18:00, or just 2026-10-20.\n";
+    }
+}
+
+// Editing helpers: show the current value in [brackets]; Enter keeps it.
+std::string readLineKeep(const std::string& label, const std::string& current)
+{
+    std::string s = readLine(label + " [" + current + "]: ");
+    return s.empty() ? current : s;
+}
+
+int readIntKeep(const std::string& label, int lo, int hi, int current)
+{
+    while (true) {
+        std::string line = readLine(label + " [" + std::to_string(current) + "]: ");
+        if (line.empty()) return current;
+        try {
+            std::size_t pos = 0;
+            int value = std::stoi(line, &pos);
+            while (pos < line.size() && std::isspace(static_cast<unsigned char>(line[pos]))) ++pos;
+            if (pos != line.size()) throw std::invalid_argument("trailing");
+            if (value >= lo && value <= hi) return value;
+            std::cout << "  Please enter a number from " << lo << " to " << hi << ".\n";
+        }
+        catch (const std::exception&) {
+            std::cout << "  That is not a number. Try again.\n";
+        }
+    }
+}
+
+bool readYesNoKeep(const std::string& label, bool current)
+{
+    while (true) {
+        std::string s = readLine(label + " [" + (current ? "y" : "n") + "]: ");
+        if (s.empty())                                 return current;
+        if (s == "y" || s == "Y" || s == "yes")        return true;
+        if (s == "n" || s == "N" || s == "no")         return false;
+        std::cout << "  Please answer y or n.\n";
+    }
+}
+
 // Minutes from now until the NEXT time the clock reads wakeMinutes.
 //   now 21:30, wake 07:00  ->  570   (wake-up is tomorrow morning)
 //   now 05:00, wake 07:00  ->  120   (wake-up is later this morning)
@@ -264,7 +346,7 @@ void addTask(Database& db)
     t.minTime = readInt("Minimum acceptable time in minutes: ", 1, t.estimatedTime);
 
     t.isMandatory = readYesNo("Is this mandatory? (y/n): ");
-    t.deadline    = readLine("Deadline YYYY-MM-DD HH:MM (blank for none): ");
+    t.deadline    = readDeadline(false, "");
 
     if (db.addTask(t)) std::cout << "Task added.\n";
     else               std::cout << "Could not add task.\n";
@@ -530,6 +612,43 @@ void whatNow(Database& db)
     }
 }
 
+void editTask(Database& db)
+{
+    std::vector<Task> tasks = db.getAllTasks();
+    listTasks(db, false);
+    if (tasks.empty()) return;
+
+    int id = readInt("\nId of the task to edit (0 to cancel): ", 0, 1000000);
+    if (id == 0) return;
+
+    Task* t = nullptr;
+    for (Task& x : tasks) if (x.id == id) t = &x;
+    if (!t) {
+        std::cout << "No task with id " << id << "\n";
+        return;
+    }
+
+    std::cout << "\nEditing \"" << t->title << "\". Press Enter to keep the value in [brackets].\n";
+
+    t->title          = readLineKeep("Title", t->title);
+    t->description    = readLineKeep("Description", t->description);
+    t->category       = readLineKeep("Category", t->category);
+    t->priority       = readIntKeep("Priority 1-5", 1, 5, t->priority);
+    t->difficulty     = readIntKeep("Difficulty 1-5", 1, 5, t->difficulty);
+    t->energyRequired = readIntKeep("Energy required 1-5", 1, 5, t->energyRequired);
+    t->estimatedTime  = readIntKeep("Ideal time in minutes", 1, 1440, t->estimatedTime);
+
+    // If the ideal time was cut below the old minimum, the old minimum is
+    // no longer allowed, so offer the new ideal as the default instead.
+    int minDefault = std::min(t->minTime, t->estimatedTime);
+    t->minTime        = readIntKeep("Minimum acceptable time", 1, t->estimatedTime, minDefault);
+
+    t->isMandatory    = readYesNoKeep("Mandatory? (y/n)", t->isMandatory);
+    t->deadline       = readDeadline(true, t->deadline);
+
+    if (db.updateTask(*t)) std::cout << "Task updated.\n";
+}
+
 void deleteTask(Database& db)
 {
     listTasks(db, false);
@@ -672,24 +791,26 @@ int main()
                   << " 3. List all tasks\n"
                   << " 4. List pending tasks\n"
                   << " 5. Add a task\n"
-                  << " 6. Mark a task complete\n"
-                  << " 7. Delete a task\n"
-                  << " 8. My schedule (college, school, work)\n"
-                  << " 9. Change wake-up time\n"
-                  << "10. Quit\n"
+                  << " 6. Edit a task\n"
+                  << " 7. Mark a task complete\n"
+                  << " 8. Delete a task\n"
+                  << " 9. My schedule (college, school, work)\n"
+                  << "10. Change wake-up time\n"
+                  << "11. Quit\n"
                   << "------------------------------\n";
 
-        switch (readInt("Choose 1-10: ", 1, 10)) {
+        switch (readInt("Choose 1-11: ", 1, 11)) {
             case 1:  whatNow(db);          break;
             case 2:  planDay(db);          break;
             case 3:  listTasks(db, false); break;
             case 4:  listTasks(db, true);  break;
             case 5:  addTask(db);          break;
-            case 6:  markComplete(db);     break;
-            case 7:  deleteTask(db);       break;
-            case 8:  mySchedule(db);       break;
-            case 9:  changeWakeTime(db);   break;
-            case 10: running = false;      break;
+            case 6:  editTask(db);         break;
+            case 7:  markComplete(db);     break;
+            case 8:  deleteTask(db);       break;
+            case 9:  mySchedule(db);       break;
+            case 10: changeWakeTime(db);   break;
+            case 11: running = false;      break;
         }
     }
 
