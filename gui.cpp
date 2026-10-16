@@ -15,6 +15,7 @@
 #include <GLFW/glfw3.h>
 
 #include <algorithm>
+#include <cfloat>
 #include <cstdio>
 #include <fstream>
 #include <string>
@@ -40,8 +41,19 @@ struct TaskForm {
 // Everything the screens remember between frames.
 struct AppState {
     std::vector<Task>            tasks;
-    std::vector<CommitmentBlock> commitments;
+    std::vector<CommitmentRow>   commitmentRows;   // as stored, for the schedule table
+    std::vector<CommitmentBlock> commitments;      // as numbers, for the calculations
     bool showCompleted = false;
+
+    // Plan my day
+    bool       havePlan  = false;
+    bool       planSaved = false;
+    PlanResult plan;
+    int        planNow = 0, planWake = 0, planWindow = 0, planBusy = 0, planBudget = 0;
+
+    // My schedule: the add form
+    std::string cName, cStart, cEnd, cError;
+    bool        cDays[7] = {true, true, true, true, true, false, false};   // Mon-Fri
 
     int                     energy = 3;
     bool                    haveSuggestions = false;
@@ -59,10 +71,10 @@ struct AppState {
     std::string status;
 };
 
-std::vector<CommitmentBlock> loadCommitments(Database& db)
+std::vector<CommitmentBlock> toBlocks(const std::vector<CommitmentRow>& rows)
 {
     std::vector<CommitmentBlock> out;
-    for (const CommitmentRow& r : db.getCommitments()) {
+    for (const CommitmentRow& r : rows) {
         int s = tu::parseHM(r.start), e = tu::parseHM(r.end);
         if (s < 0 || e < 0 || r.days.size() != 7) continue;
         CommitmentBlock b;
@@ -77,8 +89,10 @@ std::vector<CommitmentBlock> loadCommitments(Database& db)
 void reloadAll(Database& db, AppState& s)
 {
     s.tasks           = db.getAllTasks();
-    s.commitments     = loadCommitments(db);
+    s.commitmentRows  = db.getCommitments();
+    s.commitments     = toBlocks(s.commitmentRows);
     s.haveSuggestions = false;
+    s.havePlan        = false;     // the old plan no longer matches the data
 }
 
 int savedWakeTime(Database& db)
@@ -427,6 +441,278 @@ void drawTasksTab(Database& db, AppState& s)
     drawDeleteDialog(db, s);
 }
 
+// ---------------------------------------------------------------
+// "Plan my day" tab
+// ---------------------------------------------------------------
+int priorityOf(const AppState& s, int id)
+{
+    for (const Task& t : s.tasks) if (t.id == id) return t.priority;
+    return 0;
+}
+
+void computePlan(Database& db, AppState& s)
+{
+    int wake = savedWakeTime(db);
+    if (wake < 0) wake = 7 * 60;
+
+    // The window runs from now to the next wake-up. Fixed commitments in
+    // that window are not available, so they come off the top.
+    s.planNow    = tu::nowMinutes();
+    s.planWake   = wake;
+    s.planWindow = tu::minutesUntil(wake);
+    s.planBusy   = busyMinutesInWindow(s.commitments, s.planNow, s.planWindow, tu::todayIndex());
+    s.planBudget = s.planWindow - s.planBusy;
+
+    std::vector<ShrinkItem> items;
+    for (const Task& t : s.tasks) {
+        if (t.status == "Completed") continue;
+        ShrinkItem it;
+        it.id        = t.id;
+        it.title     = t.title;
+        it.requested = t.estimatedTime;
+        it.minimum   = t.minTime;
+        it.priority  = t.priority;
+        it.mandatory = t.isMandatory;
+        items.push_back(it);
+    }
+
+    s.plan      = planWithDropping(items, s.planBudget);
+    s.havePlan  = true;
+    s.planSaved = false;
+}
+
+void drawPlanTab(Database& db, AppState& s, ImFont* large)
+{
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextColored(kMuted,
+        "Fits your pending tasks into the time between now and your next wake-up, "
+        "after your fixed commitments. Low-priority tasks are shortened first; if that "
+        "is not enough, optional tasks are dropped.");
+    ImGui::PopTextWrapPos();
+
+    ImGui::Spacing();
+    if (ImGui::Button("Plan my day", ImVec2(280, 40))) computePlan(db, s);
+    if (!s.havePlan) return;
+
+    ImGui::Spacing();
+    ImGui::Text("Now %s, wake-up %s: %d minutes", tu::formatHM(s.planNow).c_str(),
+                tu::formatHM(s.planWake).c_str(), s.planWindow);
+    if (s.planBusy > 0) {
+        ImGui::SameLine();
+        ImGui::TextColored(kMuted, " minus %d for fixed commitments", s.planBusy);
+    }
+    if (large) ImGui::PushFont(large);
+    ImGui::TextColored(kAccent, "%d minutes for tasks (%dh %dm), including sleep",
+                       s.planBudget, s.planBudget / 60, s.planBudget % 60);
+    if (large) ImGui::PopFont();
+
+    const PlanResult& p = s.plan;
+    if (p.kept.allocations.empty() && p.dropped.empty()) {
+        ImGui::TextColored(kGood, "Nothing pending. Enjoy the free time.");
+        return;
+    }
+
+    ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                            ImGuiTableFlags_SizingStretchProp;
+    if (ImGui::BeginTable("plan", 6, flags)) {
+        ImGui::TableSetupColumn("Task",    ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Pri",     ImGuiTableColumnFlags_WidthFixed, 40);
+        ImGui::TableSetupColumn("Wanted",  ImGuiTableColumnFlags_WidthFixed, 70);
+        ImGui::TableSetupColumn("Planned", ImGuiTableColumnFlags_WidthFixed, 70);
+        ImGui::TableSetupColumn("Lost",    ImGuiTableColumnFlags_WidthFixed, 60);
+        ImGui::TableSetupColumn("Kept",    ImGuiTableColumnFlags_WidthFixed, 220);
+        ImGui::TableHeadersRow();
+
+        int total = 0;
+        for (const Allocation& a : p.kept.allocations) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn(); ImGui::Text("%s", a.title.c_str());
+            ImGui::TableNextColumn(); ImGui::Text("%d", priorityOf(s, a.id));
+            ImGui::TableNextColumn(); ImGui::Text("%d", a.requested);
+            ImGui::TableNextColumn(); ImGui::Text("%d", a.allocated);
+            ImGui::TableNextColumn();
+            if (a.lost() > 0) ImGui::TextColored(kWarn, "%d", a.lost());
+            else              ImGui::TextDisabled("0");
+
+            // How much of the task survived, as a bar.
+            ImGui::TableNextColumn();
+            float kept = a.requested > 0 ? static_cast<float>(a.allocated) / a.requested : 1.0f;
+            char label[16];
+            std::snprintf(label, sizeof(label), "%d%%", static_cast<int>(kept * 100 + 0.5f));
+            ImGui::ProgressBar(kept, ImVec2(-FLT_MIN, 0), label);
+
+            total += a.allocated;
+        }
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn(); ImGui::TextColored(kAccent, "Total");
+        ImGui::TableNextColumn();
+        ImGui::TableNextColumn();
+        ImGui::TableNextColumn(); ImGui::TextColored(kAccent, "%d", total);
+        ImGui::TableNextColumn();
+        ImGui::TableNextColumn(); ImGui::TextColored(kMuted, "of %d available", s.planBudget);
+
+        ImGui::EndTable();
+    }
+
+    if (!p.dropped.empty()) {
+        ImGui::SeparatorText("Dropped to make the day fit");
+        for (const Allocation& a : p.dropped) {
+            ImGui::TextColored(kWarn, "  %s", a.title.c_str());
+            ImGui::SameLine();
+            ImGui::TextColored(kMuted, "(priority %d, %d min) - move it to another day",
+                               priorityOf(s, a.id), a.requested);
+        }
+    }
+
+    ImGui::Spacing();
+    if (p.kept.deficit > 0)
+        ImGui::TextColored(kMuted, "The remaining tasks were shortened by %d minutes in total.",
+                           p.kept.deficit);
+    else if (p.dropped.empty())
+        ImGui::TextColored(kGood, "Everything fits at full length.");
+
+    if (!p.feasible) {
+        ImGui::PushTextWrapPos(0.0f);
+        ImGui::TextColored(kWarn,
+            "This day still doesn't fit. Even your mandatory tasks at their minimums are "
+            "%d minutes over, and nothing optional is left to drop. Consider marking a task "
+            "as not mandatory, or moving it to another day.", p.shortfall);
+        ImGui::PopTextWrapPos();
+        return;
+    }
+
+    ImGui::Spacing();
+    if (s.planSaved) {
+        ImGui::TextColored(kGood, "Saved for %s.", tu::todayString().c_str());
+    } else if (ImGui::Button("Save this plan", ImVec2(200, 0))) {
+        // Dropped tasks are saved with 0 minutes, so the history records
+        // what was given up that day as well as what was done.
+        std::vector<PlanRow> rows;
+        for (const Allocation& a : p.kept.allocations) rows.push_back({a.id, a.requested, a.allocated});
+        for (const Allocation& a : p.dropped)          rows.push_back({a.id, a.requested, 0});
+
+        if (db.savePlan(tu::todayString(), rows)) {
+            s.planSaved = true;
+            s.status    = "Plan saved for " + tu::todayString();
+        } else {
+            s.status = "Could not save the plan. Details are in the terminal.";
+        }
+    }
+}
+
+// ---------------------------------------------------------------
+// "My schedule" tab
+// ---------------------------------------------------------------
+void drawScheduleTab(Database& db, AppState& s)
+{
+    static const char* kDays[7] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextColored(kMuted,
+        "Fixed commitments are times you are always busy: college, school, office hours, "
+        "tuition, a work shift. Plan my day leaves them out, and What now tells you when "
+        "you're in one.");
+    ImGui::PopTextWrapPos();
+
+    bool changed = false;
+
+    ImGui::SeparatorText("Your commitments");
+    if (s.commitmentRows.empty()) {
+        ImGui::TextDisabled("None yet. Add one below.");
+    } else if (ImGui::BeginTable("schedule", 4,
+                   ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Days", ImGuiTableColumnFlags_WidthFixed, 200);
+        ImGui::TableSetupColumn("Time", ImGuiTableColumnFlags_WidthFixed, 220);
+        ImGui::TableSetupColumn("",     ImGuiTableColumnFlags_WidthFixed, 80);
+        ImGui::TableHeadersRow();
+
+        for (const CommitmentRow& c : s.commitmentRows) {
+            ImGui::PushID(c.id);
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn(); ImGui::Text("%s", c.label.c_str());
+            ImGui::TableNextColumn(); ImGui::Text("%s", daysToText(c.days).c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%s - %s", c.start.c_str(), c.end.c_str());
+            if (tu::parseHM(c.end) <= tu::parseHM(c.start)) {
+                ImGui::SameLine();
+                ImGui::TextColored(kMuted, "(overnight)");
+            }
+            ImGui::TableNextColumn();
+            if (ImGui::SmallButton("Delete")) {
+                if (db.deleteCommitment(c.id)) s.status = "Removed: " + c.label;
+                changed = true;
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+
+    if (changed) reloadAll(db, s);
+
+    ImGui::SeparatorText("Add a commitment");
+
+    ImGui::SetNextItemWidth(300);
+    ImGui::InputTextWithHint("Name", "College, School, Office, Tuition...", &s.cName);
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("Days:");
+    for (int i = 0; i < 7; ++i) {
+        ImGui::SameLine();
+        ImGui::Checkbox(kDays[i], &s.cDays[i]);
+    }
+    ImGui::Text("     ");
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Weekdays"))  for (int i = 0; i < 7; ++i) s.cDays[i] = (i < 5);
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Every day")) for (int i = 0; i < 7; ++i) s.cDays[i] = true;
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Clear"))     for (int i = 0; i < 7; ++i) s.cDays[i] = false;
+
+    ImGui::SetNextItemWidth(90);
+    ImGui::InputTextWithHint("Starts", "09:00", &s.cStart);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(90);
+    ImGui::InputTextWithHint("Ends", "16:00", &s.cEnd);
+
+    int startMin = tu::parseHM(s.cStart);
+    int endMin   = tu::parseHM(s.cEnd);
+    if (startMin >= 0 && endMin >= 0 && endMin < startMin) {
+        ImGui::SameLine();
+        ImGui::TextColored(kMuted, "runs past midnight");
+    }
+
+    if (!s.cError.empty()) ImGui::TextColored(kWarn, "%s", s.cError.c_str());
+
+    if (ImGui::Button("Add commitment", ImVec2(200, 0))) {
+        std::string mask;
+        for (int i = 0; i < 7; ++i) mask += s.cDays[i] ? '1' : '0';
+
+        s.cError.clear();
+        if (s.cName.empty())                     s.cError = "Give it a name.";
+        else if (mask == "0000000")              s.cError = "Tick at least one day.";
+        else if (startMin < 0 || endMin < 0)     s.cError = "Times must be HH:MM, for example 09:00.";
+        else if (startMin == endMin)             s.cError = "Start and end can't be the same.";
+
+        if (s.cError.empty()) {
+            CommitmentRow c;
+            c.label = s.cName;
+            c.days  = mask;
+            c.start = tu::formatHM(startMin);
+            c.end   = tu::formatHM(endMin);
+            if (db.addCommitment(c)) {
+                s.status = "Added: " + c.label + ", " + daysToText(mask) + ", " +
+                           c.start + "-" + c.end;
+                s.cName.clear(); s.cStart.clear(); s.cEnd.clear();
+                reloadAll(db, s);
+            } else {
+                s.cError = "Could not save. Details are in the terminal.";
+            }
+        }
+    }
+}
+
 // Loads a real font if one is installed; otherwise scales the built-in one.
 // Returns a larger font for headings, or nullptr if none was loaded.
 ImFont* loadFonts(ImGuiIO& io)
@@ -514,8 +800,10 @@ int main()
         ImGui::TextColored(kMuted, "   shrink your day to fit");
 
         if (ImGui::BeginTabBar("tabs")) {
-            if (ImGui::BeginTabItem("What now")) { drawNowTab(db, s, large); ImGui::EndTabItem(); }
-            if (ImGui::BeginTabItem("Tasks"))    { drawTasksTab(db, s);       ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("What now"))    { drawNowTab(db, s, large);  ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Plan my day")) { drawPlanTab(db, s, large); ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("Tasks"))       { drawTasksTab(db, s);       ImGui::EndTabItem(); }
+            if (ImGui::BeginTabItem("My schedule")) { drawScheduleTab(db, s);    ImGui::EndTabItem(); }
             ImGui::EndTabBar();
         }
 
