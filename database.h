@@ -29,6 +29,17 @@ struct PlanRow {
     int allocated = 0;
 };
 
+// One fixed commitment as stored in the database: college, school,
+// office, tuition, a shift. Kept as plain text here; main.cpp turns it
+// into numbers for the commitments module.
+struct CommitmentRow {
+    int         id = 0;
+    std::string label;   // "College", "Office", ...
+    std::string days;    // 7 chars, Mon..Sun, e.g. "1111100"
+    std::string start;   // "HH:MM"
+    std::string end;     // "HH:MM"; earlier than start means it runs past midnight
+};
+
 class Database {
     sqlite3* db = nullptr;
 
@@ -266,6 +277,93 @@ public:
         // that something was actually updated.
         if (ok && sqlite3_changes(db) == 0) {
             std::cout << "No task with id " << taskId << "\n";
+            return false;
+        }
+        return ok;
+    }
+
+    // ---------------------------------------------------------------
+    // Fixed commitments
+    // ---------------------------------------------------------------
+    bool createCommitmentsTable() {
+        const char* sql =
+            "CREATE TABLE IF NOT EXISTS commitments ("
+            "commitment_id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "label      TEXT NOT NULL,"
+            "days       TEXT NOT NULL CHECK (length(days) = 7),"
+            "start_time TEXT NOT NULL,"
+            "end_time   TEXT NOT NULL);";
+
+        char* err = nullptr;
+        if (sqlite3_exec(db, sql, nullptr, nullptr, &err) != SQLITE_OK) {
+            std::cout << "Error: " << err << "\n";
+            sqlite3_free(err);
+            return false;
+        }
+        return true;
+    }
+
+    bool addCommitment(const CommitmentRow& c) {
+        const char* sql =
+            "INSERT INTO commitments (label, days, start_time, end_time) "
+            "VALUES (?, ?, ?, ?);";
+
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
+            return false;
+        }
+        sqlite3_bind_text(stmt, 1, c.label.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, c.days.c_str(),  -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 3, c.start.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 4, c.end.c_str(),   -1, SQLITE_TRANSIENT);
+
+        bool ok = (sqlite3_step(stmt) == SQLITE_DONE);
+        if (!ok) std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
+        sqlite3_finalize(stmt);
+        return ok;
+    }
+
+    std::vector<CommitmentRow> getCommitments() {
+        std::vector<CommitmentRow> out;
+        const char* sql =
+            "SELECT commitment_id, label, days, start_time, end_time "
+            "FROM commitments ORDER BY start_time, commitment_id;";
+
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
+            return out;
+        }
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            CommitmentRow c;
+            c.id    = sqlite3_column_int(stmt, 0);
+            c.label = colText(stmt, 1);
+            c.days  = colText(stmt, 2);
+            c.start = colText(stmt, 3);
+            c.end   = colText(stmt, 4);
+            out.push_back(c);
+        }
+        sqlite3_finalize(stmt);
+        return out;
+    }
+
+    bool deleteCommitment(int id) {
+        const char* sql = "DELETE FROM commitments WHERE commitment_id = ?;";
+
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
+            return false;
+        }
+        sqlite3_bind_int(stmt, 1, id);
+
+        bool ok = (sqlite3_step(stmt) == SQLITE_DONE);
+        if (!ok) std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
+        sqlite3_finalize(stmt);
+
+        if (ok && sqlite3_changes(db) == 0) {
+            std::cout << "No commitment with id " << id << "\n";
             return false;
         }
         return ok;

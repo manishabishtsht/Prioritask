@@ -7,6 +7,7 @@
 //   .\prioritask.exe
 
 #include "advisor.h"
+#include "commitments.h"
 #include "database.h"
 #include "scheduler.h"
 
@@ -168,6 +169,34 @@ int getWakeTime(Database& db)
     return parseHM(t);
 }
 
+// Today's weekday with Monday = 0 ... Sunday = 6. The C library counts
+// from Sunday = 0, so shift it.
+int todayIndex()
+{
+    std::tm tm = localNow();
+    return (tm.tm_wday + 6) % 7;
+}
+
+// Reads commitments from the database and turns their "HH:MM" text into
+// minutes for the commitments module. Rows that can't be read are skipped.
+std::vector<CommitmentBlock> loadCommitments(Database& db)
+{
+    std::vector<CommitmentBlock> out;
+    for (const CommitmentRow& r : db.getCommitments()) {
+        int s = parseHM(r.start);
+        int e = parseHM(r.end);
+        if (s < 0 || e < 0 || r.days.size() != 7) continue;
+
+        CommitmentBlock b;
+        b.label    = r.label;
+        b.days     = r.days;
+        b.startMin = s;
+        b.endMin   = e;
+        out.push_back(b);
+    }
+    return out;
+}
+
 // ---------------------------------------------------------------
 // Menu actions
 // ---------------------------------------------------------------
@@ -283,13 +312,22 @@ void planDay(Database& db)
     // The window runs from now until you next wake up. Sleep is one of the
     // tasks INSIDE that window, so if sleep gets compressed, the result is
     // a later bedtime -- which is exactly the original design.
+    // Fixed commitments (college, school, office...) inside that window
+    // are not available for tasks, so they come off the top.
     int wake   = getWakeTime(db);
-    int budget = minutesUntil(wake);
+    int now    = nowMinutes();
+    int window = minutesUntil(wake);
+    int busy   = busyMinutesInWindow(loadCommitments(db), now, window, todayIndex());
+    int budget = window - busy;
 
-    std::cout << "\nIt is now " << formatHM(nowMinutes())
+    std::cout << "\nIt is now " << formatHM(now)
               << ". You wake up at " << formatHM(wake) << ".\n";
-    std::cout << "That leaves " << budget << " minutes ("
-              << budget / 60 << "h " << budget % 60 << "m), including sleep.\n";
+    std::cout << "That's " << window << " minutes";
+    if (busy > 0) {
+        std::cout << ", minus " << busy << " for your fixed commitments";
+    }
+    std::cout << ".\nYou have " << budget << " minutes ("
+              << budget / 60 << "h " << budget % 60 << "m) for tasks, including sleep.\n";
 
     std::cout << "\n" << tasks.size() << " pending task(s) want "
               << totalWanted << " minutes.\n";
@@ -425,6 +463,17 @@ void whatNow(Database& db)
 
     int wake = getWakeTime(db);
 
+    // If a commitment is running right now, say so: the suggestion is then
+    // for when it ends, not for this minute.
+    std::string busyWith;
+    int freeAt = 0, busyLeft = 0;
+    if (currentCommitment(loadCommitments(db), nowMinutes(), todayIndex(),
+                          busyWith, freeAt, busyLeft)) {
+        std::cout << "\nYou're at " << busyWith << " until " << formatHM(freeAt)
+                  << " (" << formatDuration(busyLeft) << " left).\n"
+                  << "Here's what to do once you're free.\n";
+    }
+
     std::cout << "\nThe clock says " << formatHM(nowMinutes())
               << ", but only you know how you feel.\n";
     int energy = readInt("Your energy right now, 1 (drained) to 5 (sharp): ", 1, 5);
@@ -505,6 +554,93 @@ void changeWakeTime(Database& db)
         std::cout << "Wake-up time set to " << t << ".\n";
 }
 
+// ---------------------------------------------------------------
+// My schedule: fixed commitments
+// ---------------------------------------------------------------
+
+void listCommitmentsUI(Database& db)
+{
+    std::vector<CommitmentRow> rows = db.getCommitments();
+    std::cout << "\nYour fixed commitments:\n";
+    if (rows.empty()) {
+        std::cout << "  (none yet - add college, school, office hours, tuition...)\n";
+        return;
+    }
+
+    std::cout << "  " << std::left
+              << std::setw(5)  << "id"
+              << std::setw(18) << "name"
+              << std::setw(18) << "days"
+              << "time\n";
+    std::cout << "  " << std::string(56, '-') << "\n";
+
+    for (const CommitmentRow& c : rows) {
+        std::cout << "  " << std::left
+                  << std::setw(5)  << c.id
+                  << std::setw(18) << c.label.substr(0, 17)
+                  << std::setw(18) << daysToText(c.days)
+                  << c.start << "-" << c.end;
+        if (parseHM(c.end) <= parseHM(c.start)) std::cout << "  (overnight)";
+        std::cout << "\n";
+    }
+}
+
+void addCommitmentUI(Database& db)
+{
+    CommitmentRow c;
+    std::cout << "\n--- New fixed commitment ---\n";
+
+    while (c.label.empty()) {
+        c.label = readLine("Name (e.g. College, School, Office, Tuition): ");
+        if (c.label.empty()) std::cout << "  Name cannot be empty.\n";
+    }
+
+    while (true) {
+        c.days = parseDays(readLine("Days (e.g. mon-fri, mon,wed,fri, weekdays, daily): "));
+        if (!c.days.empty()) break;
+        std::cout << "  I couldn't read that. Try mon-fri, sat, or mon,wed,fri.\n";
+    }
+
+    c.start = readTime("Starts at (HH:MM): ");
+    while (true) {
+        c.end = readTime("Ends at (HH:MM): ");
+        if (c.end != c.start) break;
+        std::cout << "  Start and end can't be the same time.\n";
+    }
+
+    if (parseHM(c.end) < parseHM(c.start)) {
+        std::cout << "  This runs past midnight and ends the next day.\n";
+    }
+
+    if (db.addCommitment(c)) {
+        std::cout << "Added: " << c.label << ", " << daysToText(c.days)
+                  << ", " << c.start << "-" << c.end << "\n";
+    }
+}
+
+void deleteCommitmentUI(Database& db)
+{
+    int id = readInt("\nId of the commitment to delete (0 to cancel): ", 0, 1000000);
+    if (id == 0) return;
+    if (!readYesNo("Delete commitment " + std::to_string(id) + "? (y/n): ")) return;
+    if (db.deleteCommitment(id)) std::cout << "Deleted.\n";
+}
+
+void mySchedule(Database& db)
+{
+    while (true) {
+        listCommitmentsUI(db);
+        std::cout << "\n  1. Add a commitment\n"
+                  << "  2. Delete a commitment\n"
+                  << "  3. Back to main menu\n";
+        switch (readInt("Choose 1-3: ", 1, 3)) {
+            case 1: addCommitmentUI(db);    break;
+            case 2: deleteCommitmentUI(db); break;
+            case 3: return;
+        }
+    }
+}
+
 } // namespace
 
 
@@ -520,6 +656,7 @@ int main()
     db.createTable();
     db.createDayPlanTable();
     db.createSettingsTable();
+    db.createCommitmentsTable();
 
     std::cout << "==============================\n"
               << "        PrioriTask\n"
@@ -537,20 +674,22 @@ int main()
                   << " 5. Add a task\n"
                   << " 6. Mark a task complete\n"
                   << " 7. Delete a task\n"
-                  << " 8. Change wake-up time\n"
-                  << " 9. Quit\n"
+                  << " 8. My schedule (college, school, work)\n"
+                  << " 9. Change wake-up time\n"
+                  << "10. Quit\n"
                   << "------------------------------\n";
 
-        switch (readInt("Choose 1-9: ", 1, 9)) {
-            case 1: whatNow(db);          break;
-            case 2: planDay(db);          break;
-            case 3: listTasks(db, false); break;
-            case 4: listTasks(db, true);  break;
-            case 5: addTask(db);          break;
-            case 6: markComplete(db);     break;
-            case 7: deleteTask(db);       break;
-            case 8: changeWakeTime(db);   break;
-            case 9: running = false;      break;
+        switch (readInt("Choose 1-10: ", 1, 10)) {
+            case 1:  whatNow(db);          break;
+            case 2:  planDay(db);          break;
+            case 3:  listTasks(db, false); break;
+            case 4:  listTasks(db, true);  break;
+            case 5:  addTask(db);          break;
+            case 6:  markComplete(db);     break;
+            case 7:  deleteTask(db);       break;
+            case 8:  mySchedule(db);       break;
+            case 9:  changeWakeTime(db);   break;
+            case 10: running = false;      break;
         }
     }
 
