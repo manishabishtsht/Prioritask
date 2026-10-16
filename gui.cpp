@@ -27,6 +27,109 @@ const ImVec4 kAccent(0.45f, 0.75f, 1.00f, 1.0f);
 const ImVec4 kWarn  (1.00f, 0.75f, 0.30f, 1.0f);
 const ImVec4 kGood  (0.45f, 0.85f, 0.55f, 1.0f);
 const ImVec4 kMuted (0.60f, 0.60f, 0.65f, 1.0f);
+const ImVec4 kSoon  (0.95f, 0.85f, 0.40f, 1.0f);   // due within a day
+
+// ---------------------------------------------------------------
+// Look and feel. Everything here changes appearance only.
+// ---------------------------------------------------------------
+const ImVec4 kBtn      (0.26f, 0.47f, 0.88f, 1.0f);
+const ImVec4 kBtnHover (0.36f, 0.57f, 0.96f, 1.0f);
+const ImVec4 kBtnActive(0.20f, 0.40f, 0.78f, 1.0f);
+
+// A solid blue button for the main action on each screen.
+bool primaryButton(const char* label, const ImVec2& size = ImVec2(0, 0))
+{
+    ImGui::PushStyleColor(ImGuiCol_Button,        kBtn);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kBtnHover);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  kBtnActive);
+    bool pressed = ImGui::Button(label, size);
+    ImGui::PopStyleColor(3);
+    return pressed;
+}
+
+// A red button for actions that can't be undone.
+bool dangerButton(const char* label, const ImVec2& size = ImVec2(0, 0))
+{
+    ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.72f, 0.26f, 0.26f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.84f, 0.33f, 0.33f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.62f, 0.20f, 0.20f, 1.0f));
+    bool pressed = ImGui::Button(label, size);
+    ImGui::PopStyleColor(3);
+    return pressed;
+}
+
+// Priority 5 is red, 1 is grey, so urgency reads at a glance.
+ImVec4 priorityColor(int p)
+{
+    switch (p) {
+        case 5:  return ImVec4(1.00f, 0.47f, 0.45f, 1.0f);
+        case 4:  return ImVec4(1.00f, 0.68f, 0.35f, 1.0f);
+        case 3:  return ImVec4(0.95f, 0.85f, 0.40f, 1.0f);
+        case 2:  return ImVec4(0.55f, 0.75f, 1.00f, 1.0f);
+        default: return kMuted;
+    }
+}
+
+void applyTheme()
+{
+    ImGuiStyle& st = ImGui::GetStyle();
+
+    st.WindowPadding     = ImVec2(18, 14);
+    st.FramePadding      = ImVec2(10, 6);
+    st.ItemSpacing       = ImVec2(10, 9);
+    st.ItemInnerSpacing  = ImVec2(8, 6);
+    st.CellPadding       = ImVec2(8, 6);
+    st.WindowRounding    = 0.0f;
+    st.ChildRounding     = 10.0f;
+    st.ChildBorderSize   = 1.0f;
+    st.FrameRounding     = 6.0f;
+    st.PopupRounding     = 8.0f;
+    st.GrabRounding      = 6.0f;
+    st.TabRounding       = 6.0f;
+    st.ScrollbarRounding = 8.0f;
+    st.WindowBorderSize  = 0.0f;
+    st.FrameBorderSize   = 0.0f;
+    st.PopupBorderSize   = 1.0f;
+
+    ImVec4* c = st.Colors;
+    const ImVec4 bg      (0.07f, 0.08f, 0.11f, 1.0f);
+    const ImVec4 panel   (0.11f, 0.12f, 0.16f, 1.0f);
+    const ImVec4 frame   (0.15f, 0.17f, 0.22f, 1.0f);
+    const ImVec4 frameHov(0.20f, 0.23f, 0.30f, 1.0f);
+    const ImVec4 border  (0.22f, 0.25f, 0.31f, 1.0f);
+
+    c[ImGuiCol_Text]              = ImVec4(0.92f, 0.93f, 0.96f, 1.0f);
+    c[ImGuiCol_TextDisabled]      = ImVec4(0.50f, 0.53f, 0.60f, 1.0f);
+    c[ImGuiCol_WindowBg]          = bg;
+    c[ImGuiCol_ChildBg]           = panel;
+    c[ImGuiCol_PopupBg]           = panel;
+    c[ImGuiCol_Border]            = border;
+    c[ImGuiCol_FrameBg]           = frame;
+    c[ImGuiCol_FrameBgHovered]    = frameHov;
+    c[ImGuiCol_FrameBgActive]     = frameHov;
+    c[ImGuiCol_Button]            = frame;
+    c[ImGuiCol_ButtonHovered]     = frameHov;
+    c[ImGuiCol_ButtonActive]      = kBtnActive;
+    c[ImGuiCol_Header]            = frame;
+    c[ImGuiCol_HeaderHovered]     = frameHov;
+    c[ImGuiCol_HeaderActive]      = frameHov;
+    c[ImGuiCol_Separator]         = border;
+    c[ImGuiCol_SliderGrab]        = kBtn;
+    c[ImGuiCol_SliderGrabActive]  = kBtnHover;
+    c[ImGuiCol_CheckMark]         = kBtnHover;
+    c[ImGuiCol_Tab]               = panel;
+    c[ImGuiCol_TabHovered]        = kBtnHover;
+    c[ImGuiCol_TabSelected]       = kBtn;
+    c[ImGuiCol_TableHeaderBg]     = frame;
+    c[ImGuiCol_TableBorderStrong] = border;
+    c[ImGuiCol_TableBorderLight]  = ImVec4(0.17f, 0.19f, 0.24f, 1.0f);
+    c[ImGuiCol_TableRowBg]        = ImVec4(0.00f, 0.00f, 0.00f, 0.0f);
+    c[ImGuiCol_TableRowBgAlt]     = ImVec4(1.00f, 1.00f, 1.00f, 0.03f);
+    c[ImGuiCol_PlotHistogram]     = kBtn;
+    c[ImGuiCol_ScrollbarBg]       = bg;
+    c[ImGuiCol_ScrollbarGrab]     = frame;
+    c[ImGuiCol_ModalWindowDimBg]  = ImVec4(0.00f, 0.00f, 0.00f, 0.55f);
+}
 
 // The add/edit form. editingId == 0 means "new task".
 struct TaskForm {
@@ -59,6 +162,7 @@ struct AppState {
     bool                    haveSuggestions = false;
     std::vector<Suggestion> suggestions;
     std::string             wakeText;
+    int                     wakeSaved = -1;   // minutes, or -1 if none
     std::string             wakeMessage;
 
     TaskForm form;
@@ -179,86 +283,159 @@ void reasonsLine(const Suggestion& sg)
 }
 
 // ---------------------------------------------------------------
-// "What now" tab
+// Cards: rounded panels that group related things together
+// ---------------------------------------------------------------
+
+// Width of each card when n of them share one row.
+float cardWidth(int n)
+{
+    float avail = ImGui::GetContentRegionAvail().x;
+    float gap   = ImGui::GetStyle().ItemSpacing.x;
+    return (avail - gap * (n - 1)) / n;
+}
+
+// A small card with one big number and a short label underneath.
+void statCard(const char* id, float width, ImFont* large, const ImVec4& color,
+              const std::string& value, const char* label)
+{
+    ImGui::BeginChild(id, ImVec2(width, 100), ImGuiChildFlags_Borders);
+    if (large) ImGui::PushFont(large);
+    ImGui::TextColored(color, "%s", value.c_str());
+    if (large) ImGui::PopFont();
+    ImGui::TextColored(kMuted, "%s", label);
+    ImGui::EndChild();
+}
+
+// ---------------------------------------------------------------
+// "What now" tab: a dashboard
 // ---------------------------------------------------------------
 void drawNowTab(Database& db, AppState& s, ImFont* large)
 {
-    ImGui::Text("Today is %s, %s", tu::todayString().c_str(),
-                tu::formatHM(tu::nowMinutes()).c_str());
+    // ---- Row of summary cards ----
+    int pending = 0, dueSoon = 0, overdue = 0;
+    for (const Task& t : s.tasks) {
+        if (t.status == "Completed") continue;
+        ++pending;
+        long m = 0;
+        if (!t.deadline.empty() && tu::minutesUntilDeadline(t.deadline, m)) {
+            if (m < 0)            ++overdue;
+            else if (m < 24 * 60) ++dueSoon;
+        }
+    }
+    int wake    = (s.wakeSaved >= 0) ? s.wakeSaved : 7 * 60;
+    int window  = tu::minutesUntil(wake);
+    int freeMin = window - busyMinutesInWindow(s.commitments, tu::nowMinutes(), window, tu::todayIndex());
 
-    ImGui::AlignTextToFramePadding();
-    ImGui::Text("Wake-up time:");
+    float w = cardWidth(4);
+    statCard("stat_pending", w, large, kAccent, std::to_string(pending), "pending tasks");
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(90);
-    ImGui::InputText("##wake", &s.wakeText);
+    statCard("stat_soon", w, large, dueSoon ? kSoon : kMuted, std::to_string(dueSoon), "due within 24 hours");
     ImGui::SameLine();
-    if (ImGui::Button("Save##wake")) {
-        int m = tu::parseHM(s.wakeText);
-        if (m < 0) {
-            s.wakeMessage = "Use HH:MM, for example 06:30";
-        } else {
-            s.wakeText = tu::formatHM(m);
-            db.setSetting("wake_time", s.wakeText);
-            s.wakeMessage     = "Saved.";
+    statCard("stat_overdue", w, large, overdue ? kWarn : kMuted, std::to_string(overdue), "overdue");
+    ImGui::SameLine();
+    statCard("stat_free", w, large, kGood, formatDuration(freeMin), "free until wake-up, incl. sleep");
+
+    ImGui::Spacing();
+
+    // ---- Two panels side by side ----
+    float leftW  = ImGui::GetContentRegionAvail().x * 0.40f;
+    float height = -ImGui::GetFrameHeightWithSpacing();   // leave room for the status line
+
+    // Left: how you feel
+    ImGui::BeginChild("feel_panel", ImVec2(leftW, height), ImGuiChildFlags_Borders);
+    {
+        std::string busy;
+        int freeAt = 0, left = 0;
+        if (currentCommitment(s.commitments, tu::nowMinutes(), tu::todayIndex(), busy, freeAt, left)) {
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextColored(kWarn, "You're at %s until %s", busy.c_str(), tu::formatHM(freeAt).c_str());
+            ImGui::TextColored(kMuted, "%s left. Suggestions are for when you're free.",
+                               formatDuration(left).c_str());
+            ImGui::PopTextWrapPos();
+            ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+        }
+
+        ImGui::TextColored(kMuted, "HOW DO YOU FEEL RIGHT NOW?");
+        static const char* feel[6] = {"", "drained", "low", "okay", "good", "sharp"};
+        s.energy = std::clamp(s.energy, 1, 5);
+        char fmt[48];
+        std::snprintf(fmt, sizeof(fmt), "%%d  -  %s", feel[s.energy]);   // shows "4  -  good"
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        if (ImGui::SliderInt("##energy", &s.energy, 1, 5, fmt, ImGuiSliderFlags_AlwaysClamp))
             s.haveSuggestions = false;
-        }
-    }
-    if (!s.wakeMessage.empty()) {
-        ImGui::SameLine();
-        ImGui::TextColored(kMuted, "%s", s.wakeMessage.c_str());
-    }
-    if (savedWakeTime(db) < 0) {
-        ImGui::TextColored(kWarn, "No wake-up time saved yet. Using 07:00 until you save one.");
-    }
 
-    std::string busy;
-    int freeAt = 0, left = 0;
-    if (currentCommitment(s.commitments, tu::nowMinutes(), tu::todayIndex(), busy, freeAt, left)) {
         ImGui::Spacing();
-        ImGui::TextColored(kWarn, "You're at %s until %s (%s left).", busy.c_str(),
-                           tu::formatHM(freeAt).c_str(), formatDuration(left).c_str());
-        ImGui::TextColored(kMuted, "Suggestions below are for when you're free.");
+        if (primaryButton("What should I do now?", ImVec2(-FLT_MIN, 46))) computeSuggestions(db, s);
+
+        ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+        ImGui::TextColored(kMuted, "WAKE-UP TIME");
+        ImGui::SetNextItemWidth(100);
+        ImGui::InputText("##wake", &s.wakeText);
+        ImGui::SameLine();
+        if (ImGui::Button("Save##wake")) {
+            int m = tu::parseHM(s.wakeText);
+            if (m < 0) {
+                s.wakeMessage = "Use HH:MM, e.g. 06:30";
+            } else {
+                s.wakeText = tu::formatHM(m);
+                db.setSetting("wake_time", s.wakeText);
+                s.wakeSaved       = m;
+                s.wakeMessage     = "Saved.";
+                s.haveSuggestions = false;
+                s.havePlan        = false;
+            }
+        }
+        if (!s.wakeMessage.empty()) {
+            ImGui::SameLine();
+            ImGui::TextColored(kMuted, "%s", s.wakeMessage.c_str());
+        }
+        ImGui::PushTextWrapPos(0.0f);
+        if (s.wakeSaved < 0)
+            ImGui::TextColored(kWarn, "No wake-up time saved yet, so 07:00 is assumed.");
+        ImGui::TextColored(kMuted, "Plan my day uses this to work out how much time you have left.");
+        ImGui::PopTextWrapPos();
     }
+    ImGui::EndChild();
 
-    ImGui::SeparatorText("How do you feel right now?");
-    static const char* feel[6] = {"", "drained", "low", "okay", "good", "sharp"};
-    ImGui::SetNextItemWidth(260);
-    if (ImGui::SliderInt("Energy", &s.energy, 1, 5, "%d", ImGuiSliderFlags_AlwaysClamp))
-        s.haveSuggestions = false;
-    s.energy = std::clamp(s.energy, 1, 5);
     ImGui::SameLine();
-    ImGui::TextColored(kMuted, "(%s)", feel[s.energy]);
 
-    ImGui::Spacing();
-    if (ImGui::Button("What should I do now?", ImVec2(280, 40))) computeSuggestions(db, s);
+    // Right: the suggestion
+    ImGui::BeginChild("advice_panel", ImVec2(0, height), ImGuiChildFlags_Borders);
+    {
+        if (!s.haveSuggestions) {
+            ImGui::TextColored(kMuted, "SUGGESTION");
+            ImGui::Spacing();
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextColored(kMuted,
+                "Set your energy on the left and press the button. PrioriTask will pick "
+                "the best task for right now and explain why.");
+            ImGui::PopTextWrapPos();
+        } else if (s.suggestions.empty()) {
+            ImGui::TextColored(kGood, "Nothing pending right now. You're free.");
+        } else {
+            const Suggestion& top = s.suggestions[0];
+            ImGui::TextColored(kMuted, "DO THIS NOW");
+            if (large) ImGui::PushFont(large);
+            ImGui::TextColored(kAccent, "%s", top.title.c_str());
+            if (large) ImGui::PopFont();
+            ImGui::TextColored(kMuted, "about %d minutes", top.estimatedTime);
+            reasonsLine(top);
 
-    if (!s.haveSuggestions) return;
-
-    ImGui::Spacing();
-    if (s.suggestions.empty()) {
-        ImGui::TextColored(kGood, "Nothing pending right now. You're free.");
-        return;
-    }
-
-    const Suggestion& top = s.suggestions[0];
-    ImGui::SeparatorText("Do this now");
-    if (large) ImGui::PushFont(large);
-    ImGui::TextColored(kAccent, "%s", top.title.c_str());
-    if (large) ImGui::PopFont();
-    ImGui::SameLine();
-    ImGui::TextColored(kMuted, "(about %d min)", top.estimatedTime);
-    reasonsLine(top);
-
-    if (s.suggestions.size() > 1) {
-        ImGui::SeparatorText("After that");
-        for (std::size_t i = 1; i < s.suggestions.size(); ++i) {
-            ImGui::BulletText("%s  (about %d min)", s.suggestions[i].title.c_str(),
-                              s.suggestions[i].estimatedTime);
-            ImGui::Indent();
-            reasonsLine(s.suggestions[i]);
-            ImGui::Unindent();
+            if (s.suggestions.size() > 1) {
+                ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+                ImGui::TextColored(kMuted, "AFTER THAT");
+                for (std::size_t i = 1; i < s.suggestions.size(); ++i) {
+                    ImGui::Text("%d.  %s", static_cast<int>(i) + 1, s.suggestions[i].title.c_str());
+                    ImGui::SameLine();
+                    ImGui::TextColored(kMuted, "(about %d min)", s.suggestions[i].estimatedTime);
+                    ImGui::Indent();
+                    reasonsLine(s.suggestions[i]);
+                    ImGui::Unindent();
+                }
+            }
         }
     }
+    ImGui::EndChild();
 }
 
 // ---------------------------------------------------------------
@@ -297,7 +474,7 @@ void drawTaskDialog(Database& db, AppState& s)
     if (!f.error.empty()) ImGui::TextColored(kWarn, "%s", f.error.c_str());
 
     ImGui::Spacing();
-    if (ImGui::Button("Save", ImVec2(120, 0))) {
+    if (primaryButton("Save", ImVec2(120, 0))) {
         f.error.clear();
         if (f.title.empty())
             f.error = "Title cannot be empty.";
@@ -330,7 +507,7 @@ void drawDeleteDialog(Database& db, AppState& s)
     ImGui::TextColored(kMuted, "Its saved plans are removed too.");
     ImGui::Spacing();
 
-    if (ImGui::Button("Delete", ImVec2(120, 0))) {
+    if (dangerButton("Delete", ImVec2(120, 0))) {
         if (db.deleteTask(s.deleteId)) s.status = "Deleted: " + s.deleteTitle;
         reloadAll(db, s);
         ImGui::CloseCurrentPopup();
@@ -346,7 +523,7 @@ void drawDeleteDialog(Database& db, AppState& s)
 // ---------------------------------------------------------------
 void drawTasksTab(Database& db, AppState& s)
 {
-    if (ImGui::Button("+ Add task")) {
+    if (primaryButton("+ Add task")) {
         s.form           = TaskForm();
         s.openTaskDialog = true;
     }
@@ -391,17 +568,20 @@ void drawTasksTab(Database& db, AppState& s)
             if (done) ImGui::TextDisabled("%s", t.title.c_str());
             else      ImGui::Text("%s", t.title.c_str());
 
-            ImGui::TableNextColumn(); ImGui::Text("%d", t.priority);
+            ImGui::TableNextColumn(); ImGui::TextColored(priorityColor(t.priority), "%d", t.priority);
             ImGui::TableNextColumn(); ImGui::Text("%d", t.estimatedTime);
             ImGui::TableNextColumn(); ImGui::Text("%d", t.minTime);
             ImGui::TableNextColumn(); ImGui::Text("%s", t.isMandatory ? "yes" : "");
 
             ImGui::TableNextColumn();
-            long mins = 0;
+            long mins  = 0;
+            bool known = !t.deadline.empty() && tu::minutesUntilDeadline(t.deadline, mins);
             if (t.deadline.empty())
                 ImGui::TextDisabled("-");
-            else if (!done && tu::minutesUntilDeadline(t.deadline, mins) && mins < 0)
+            else if (!done && known && mins < 0)
                 ImGui::TextColored(kWarn, "%s", t.deadline.c_str());   // overdue
+            else if (!done && known && mins < 24 * 60)
+                ImGui::TextColored(kSoon, "%s", t.deadline.c_str());   // due within a day
             else
                 ImGui::Text("%s", t.deadline.c_str());
 
@@ -491,20 +671,21 @@ void drawPlanTab(Database& db, AppState& s, ImFont* large)
     ImGui::PopTextWrapPos();
 
     ImGui::Spacing();
-    if (ImGui::Button("Plan my day", ImVec2(280, 40))) computePlan(db, s);
+    if (primaryButton("Plan my day", ImVec2(280, 42))) computePlan(db, s);
     if (!s.havePlan) return;
 
     ImGui::Spacing();
-    ImGui::Text("Now %s, wake-up %s: %d minutes", tu::formatHM(s.planNow).c_str(),
-                tu::formatHM(s.planWake).c_str(), s.planWindow);
-    if (s.planBusy > 0) {
-        ImGui::SameLine();
-        ImGui::TextColored(kMuted, " minus %d for fixed commitments", s.planBusy);
-    }
-    if (large) ImGui::PushFont(large);
-    ImGui::TextColored(kAccent, "%d minutes for tasks (%dh %dm), including sleep",
-                       s.planBudget, s.planBudget / 60, s.planBudget % 60);
-    if (large) ImGui::PopFont();
+    float w = cardWidth(4);
+    std::string wakeLabel = "until wake-up at " + tu::formatHM(s.planWake);
+    statCard("plan_window", w, large, kAccent, formatDuration(s.planWindow), wakeLabel.c_str());
+    ImGui::SameLine();
+    statCard("plan_busy", w, large, kMuted, formatDuration(s.planBusy), "fixed commitments");
+    ImGui::SameLine();
+    statCard("plan_budget", w, large, kGood, formatDuration(s.planBudget), "available for tasks, incl. sleep");
+    ImGui::SameLine();
+    statCard("plan_dropped", w, large, s.plan.dropped.empty() ? kMuted : kWarn,
+             std::to_string(s.plan.dropped.size()), "tasks dropped");
+    ImGui::Spacing();
 
     const PlanResult& p = s.plan;
     if (p.kept.allocations.empty() && p.dropped.empty()) {
@@ -527,7 +708,7 @@ void drawPlanTab(Database& db, AppState& s, ImFont* large)
         for (const Allocation& a : p.kept.allocations) {
             ImGui::TableNextRow();
             ImGui::TableNextColumn(); ImGui::Text("%s", a.title.c_str());
-            ImGui::TableNextColumn(); ImGui::Text("%d", priorityOf(s, a.id));
+            ImGui::TableNextColumn(); ImGui::TextColored(priorityColor(priorityOf(s, a.id)), "%d", priorityOf(s, a.id));
             ImGui::TableNextColumn(); ImGui::Text("%d", a.requested);
             ImGui::TableNextColumn(); ImGui::Text("%d", a.allocated);
             ImGui::TableNextColumn();
@@ -539,7 +720,12 @@ void drawPlanTab(Database& db, AppState& s, ImFont* large)
             float kept = a.requested > 0 ? static_cast<float>(a.allocated) / a.requested : 1.0f;
             char label[16];
             std::snprintf(label, sizeof(label), "%d%%", static_cast<int>(kept * 100 + 0.5f));
+            ImVec4 bar = kept >= 0.80f ? ImVec4(0.27f, 0.62f, 0.40f, 1.0f)    // kept most of it
+                       : kept >= 0.50f ? ImVec4(0.80f, 0.58f, 0.18f, 1.0f)    // squeezed
+                       :                 ImVec4(0.80f, 0.34f, 0.32f, 1.0f);   // lost over half
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, bar);
             ImGui::ProgressBar(kept, ImVec2(-FLT_MIN, 0), label);
+            ImGui::PopStyleColor();
 
             total += a.allocated;
         }
@@ -585,7 +771,7 @@ void drawPlanTab(Database& db, AppState& s, ImFont* large)
     ImGui::Spacing();
     if (s.planSaved) {
         ImGui::TextColored(kGood, "Saved for %s.", tu::todayString().c_str());
-    } else if (ImGui::Button("Save this plan", ImVec2(200, 0))) {
+    } else if (primaryButton("Save this plan", ImVec2(200, 0))) {
         // Dropped tasks are saved with 0 minutes, so the history records
         // what was given up that day as well as what was done.
         std::vector<PlanRow> rows;
@@ -685,7 +871,7 @@ void drawScheduleTab(Database& db, AppState& s)
 
     if (!s.cError.empty()) ImGui::TextColored(kWarn, "%s", s.cError.c_str());
 
-    if (ImGui::Button("Add commitment", ImVec2(200, 0))) {
+    if (primaryButton("Add commitment", ImVec2(200, 0))) {
         std::string mask;
         for (int i = 0; i < 7; ++i) mask += s.cDays[i] ? '1' : '0';
 
@@ -715,8 +901,9 @@ void drawScheduleTab(Database& db, AppState& s)
 
 // Loads a real font if one is installed; otherwise scales the built-in one.
 // Returns a larger font for headings, or nullptr if none was loaded.
-ImFont* loadFonts(ImGuiIO& io)
+ImFont* loadFonts(ImGuiIO& io, ImFont*& title)
 {
+    title = nullptr;
     const char* path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
     std::ifstream probe(path);
     if (!probe.good()) {
@@ -724,7 +911,9 @@ ImFont* loadFonts(ImGuiIO& io)
         return nullptr;
     }
     io.Fonts->AddFontFromFileTTF(path, 18.0f);          // the first font is the default
-    return io.Fonts->AddFontFromFileTTF(path, 26.0f);
+    ImFont* large = io.Fonts->AddFontFromFileTTF(path, 26.0f);
+    title         = io.Fonts->AddFontFromFileTTF(path, 34.0f);
+    return large;
 }
 
 } // namespace
@@ -745,7 +934,8 @@ int main()
     AppState s;
     reloadAll(db, s);
     int wake   = savedWakeTime(db);
-    s.wakeText = (wake >= 0) ? tu::formatHM(wake) : "07:00";
+    s.wakeText  = (wake >= 0) ? tu::formatHM(wake) : "07:00";
+    s.wakeSaved = wake;
 
     if (!glfwInit()) {
         std::fprintf(stderr, "Could not start GLFW.\n");
@@ -768,12 +958,10 @@ int main()
     io.IniFilename = nullptr;            // don't write imgui.ini into the project
 
     ImGui::StyleColorsDark();
-    ImGuiStyle& style  = ImGui::GetStyle();
-    style.FrameRounding = 4.0f;
-    style.FramePadding  = ImVec2(8, 5);
-    style.ItemSpacing   = ImVec2(10, 8);
+    applyTheme();
 
-    ImFont* large = loadFonts(io);
+    ImFont* title = nullptr;
+    ImFont* large = loadFonts(io, title);
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 130");
@@ -793,11 +981,17 @@ int main()
                      ImGuiWindowFlags_NoMove     | ImGuiWindowFlags_NoCollapse |
                      ImGuiWindowFlags_NoSavedSettings);
 
-        if (large) ImGui::PushFont(large);
+        if (title) ImGui::PushFont(title);
         ImGui::TextColored(kAccent, "PrioriTask");
-        if (large) ImGui::PopFont();
+        if (title) ImGui::PopFont();
         ImGui::SameLine();
-        ImGui::TextColored(kMuted, "   shrink your day to fit");
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextColored(kMuted, "  shrink your day to fit");
+
+        std::string clock = tu::todayString() + "   " + tu::formatHM(tu::nowMinutes());
+        ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(clock.c_str()).x - 24);
+        ImGui::TextColored(kMuted, "%s", clock.c_str());
+        ImGui::Spacing();
 
         if (ImGui::BeginTabBar("tabs")) {
             if (ImGui::BeginTabItem("What now"))    { drawNowTab(db, s, large);  ImGui::EndTabItem(); }
