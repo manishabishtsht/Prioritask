@@ -3,3 +3,5 @@
 *.db
 *.zip
 prioritask
+prioritask_gui
+gui_test
