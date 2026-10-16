@@ -13,6 +13,7 @@ struct ShrinkItem {
     int         requested = 0;   // estimated_time: what it wants
     int         minimum   = 0;   // min_time: the floor it cannot go below
     int         priority  = 3;   // 1..5, 5 = most important
+    bool        mandatory = false; // mandatory items are never dropped
 };
 
 // What comes OUT, one per item.
@@ -43,6 +44,27 @@ ShrinkResult shrinkEqualSplit(const std::vector<ShrinkItem>& items,
 // weight = 6 - priority. So a low-priority item with lots of room gives
 // up the most; a high-priority item gives up least.
 ShrinkResult shrinkWeighted(const std::vector<ShrinkItem>& items,
+                            int availableMinutes);
+
+// Result of a full plan: what was kept (and how long each got), plus what
+// had to be dropped entirely to make the day fit.
+struct PlanResult {
+    ShrinkResult            kept;      // allocations for the tasks that stay
+    std::vector<Allocation> dropped;   // removed tasks, allocated = 0
+
+    bool feasible  = true;  // false only if even mandatory floors exceed the budget
+    int  shortfall = 0;     // minutes still over in that case
+};
+
+// The full planner.
+//  1. If every task's minimum fits, nothing is dropped.
+//  2. Otherwise non-mandatory tasks are dropped, least valuable first
+//     (lowest priority; on a tie, the larger minimum, which frees more time),
+//     until the minimums fit.
+//  3. A restore pass then puts back any dropped task that still fits, most
+//     valuable first, so greedy dropping never removes more than it needs to.
+//  4. The survivors are compressed with the weighted policy.
+PlanResult planWithDropping(const std::vector<ShrinkItem>& items,
                             int availableMinutes);
 
 #endif

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <queue>
 
 // ---------------------------------------------------------------
 // Shared setup. Hands back the starting allocations and the totals,
@@ -204,4 +205,98 @@ ShrinkResult shrinkWeighted(const std::vector<ShrinkItem>& items,
     }
 
     return result;
+}
+
+
+// ---------------------------------------------------------------
+// Full planner with task-dropping
+// ---------------------------------------------------------------
+namespace {
+
+struct DropCandidate {
+    std::size_t index;      // position in the original items vector
+    int         priority;
+    int         minimum;
+    int         id;
+};
+
+// Orders the priority queue so the MOST droppable task is on top.
+// Returns true when `a` is less droppable than `b`.
+struct LessDroppable {
+    bool operator()(const DropCandidate& a, const DropCandidate& b) const {
+        // Higher priority is more worth keeping.
+        if (a.priority != b.priority) return a.priority > b.priority;
+        // On a tie, drop the one with the larger minimum first: it frees
+        // more time, so fewer tasks need to go.
+        if (a.minimum  != b.minimum)  return a.minimum  < b.minimum;
+        // Final tie-break so the result is always the same.
+        return a.id < b.id;
+    }
+};
+
+} // namespace
+
+
+PlanResult planWithDropping(const std::vector<ShrinkItem>& items,
+                            int availableMinutes)
+{
+    PlanResult out;
+
+    int totalFloor = 0;
+    for (const ShrinkItem& it : items) totalFloor += it.minimum;
+
+    std::vector<bool> keep(items.size(), true);
+    std::vector<std::size_t> dropOrder;   // least valuable first
+
+    if (totalFloor > availableMinutes) {
+
+        // Only non-mandatory tasks are candidates.
+        std::priority_queue<DropCandidate, std::vector<DropCandidate>, LessDroppable> heap;
+        for (std::size_t i = 0; i < items.size(); ++i) {
+            if (!items[i].mandatory) {
+                heap.push({i, items[i].priority, items[i].minimum, items[i].id});
+            }
+        }
+
+        // Greedy: drop the least valuable task until the floors fit.
+        while (totalFloor > availableMinutes && !heap.empty()) {
+            DropCandidate c = heap.top();
+            heap.pop();
+            keep[c.index] = false;
+            totalFloor   -= items[c.index].minimum;
+            dropOrder.push_back(c.index);
+        }
+
+        // Restore pass. Greedy can overshoot: dropping a small task, then a
+        // large one, may free far more than needed. Try putting tasks back,
+        // most valuable first (reverse of the drop order).
+        for (auto it = dropOrder.rbegin(); it != dropOrder.rend(); ++it) {
+            if (totalFloor + items[*it].minimum <= availableMinutes) {
+                keep[*it]   = true;
+                totalFloor += items[*it].minimum;
+            }
+        }
+    }
+
+    // Split into kept and dropped.
+    std::vector<ShrinkItem> keptItems;
+    for (std::size_t i = 0; i < items.size(); ++i) {
+        if (keep[i]) keptItems.push_back(items[i]);
+    }
+    for (std::size_t idx : dropOrder) {          // reported in drop order
+        if (keep[idx]) continue;                  // was restored
+        Allocation a;
+        a.id        = items[idx].id;
+        a.title     = items[idx].title;
+        a.requested = items[idx].requested;
+        a.allocated = 0;
+        out.dropped.push_back(a);
+    }
+
+    // Compress whatever survived. If even the mandatory floors exceed the
+    // budget, this reports infeasible with the remaining shortfall.
+    out.kept      = shrinkWeighted(keptItems, availableMinutes);
+    out.feasible  = out.kept.feasible;
+    out.shortfall = out.kept.shortfall;
+    return out;
 }

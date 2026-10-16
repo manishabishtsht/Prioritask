@@ -273,6 +273,7 @@ void planDay(Database& db)
         s.requested = t.estimatedTime;
         s.minimum   = t.minTime;
         s.priority  = t.priority;
+        s.mandatory = t.isMandatory;
         items.push_back(s);
 
         totalWanted += t.estimatedTime;
@@ -295,7 +296,14 @@ void planDay(Database& db)
     std::cout << "Compressed to their minimums they would need "
               << totalFloor << " minutes.\n";
 
-    ShrinkResult r = shrinkWeighted(items, budget);
+    PlanResult plan = planWithDropping(items, budget);
+
+    // The kept list is a subset of `items`, so look priority up by id
+    // rather than by position.
+    auto priorityOf = [&items](int id) {
+        for (const ShrinkItem& s : items) if (s.id == id) return s.priority;
+        return 0;
+    };
 
     std::cout << "\n" << std::left
               << std::setw(5)  << "id"
@@ -308,13 +316,12 @@ void planDay(Database& db)
     std::cout << std::string(57, '-') << "\n";
 
     int total = 0;
-    for (std::size_t i = 0; i < r.allocations.size(); ++i) {
-        const Allocation& a = r.allocations[i];
+    for (const Allocation& a : plan.kept.allocations) {
         std::cout << std::left
                   << std::setw(5)  << a.id
                   << std::setw(22) << a.title.substr(0, 21)
                   << std::right
-                  << std::setw(5)  << items[i].priority
+                  << std::setw(5)  << priorityOf(a.id)
                   << std::setw(9)  << a.requested
                   << std::setw(9)  << a.allocated
                   << std::setw(7)  << a.lost() << "\n";
@@ -323,28 +330,46 @@ void planDay(Database& db)
     std::cout << std::string(57, '-') << "\n";
     std::cout << "Total planned: " << total << " / " << budget << " minutes\n";
 
-    if (r.deficit > 0) {
-        std::cout << "Had to remove " << r.deficit << " minutes overall.\n";
-    } else {
-        std::cout << "Everything fits at full length.\n";
+    if (!plan.dropped.empty()) {
+        std::cout << "\nDropped to make the day fit (move these to another day):\n";
+        for (const Allocation& a : plan.dropped) {
+            std::cout << "  - " << a.title << "  (priority " << priorityOf(a.id)
+                      << ", " << a.requested << " min)\n";
+        }
     }
 
-    if (!r.feasible) {
-        std::cout << "\nTHIS DAY DOES NOT FIT. Still " << r.shortfall
-                  << " minutes over even with every task at its minimum.\n"
-                  << "Compression cannot fix this. Something has to be dropped "
-                  << "or moved to another day.\n";
-        std::cout << "(Dropping is not implemented yet.)\n";
+    if (plan.kept.deficit > 0) {
+        std::cout << "\nThe remaining tasks were shortened by "
+                  << plan.kept.deficit << " minutes in total.\n";
+    } else if (plan.dropped.empty()) {
+        std::cout << "\nEverything fits at full length.\n";
+    }
+
+    if (!plan.feasible) {
+        std::cout << "\nTHIS DAY STILL DOES NOT FIT. Even your mandatory tasks, "
+                  << "at their minimums, are " << plan.shortfall
+                  << " minutes over.\n"
+                  << "Nothing optional is left to drop. Consider marking a task "
+                  << "as not mandatory, or moving it to another day.\n";
         return;
     }
 
     if (readYesNo("\nSave this plan? (y/n): ")) {
         std::vector<PlanRow> rows;
-        for (const Allocation& a : r.allocations) {
+        for (const Allocation& a : plan.kept.allocations) {
             PlanRow p;
             p.taskId    = a.id;
             p.requested = a.requested;
             p.allocated = a.allocated;
+            rows.push_back(p);
+        }
+        // Dropped tasks are saved with 0 minutes, so the history shows
+        // what was given up on that day, not just what was done.
+        for (const Allocation& a : plan.dropped) {
+            PlanRow p;
+            p.taskId    = a.id;
+            p.requested = a.requested;
+            p.allocated = 0;
             rows.push_back(p);
         }
 
