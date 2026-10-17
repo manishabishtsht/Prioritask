@@ -1,0 +1,9 @@
+*.exe
+*.o
+*.db
+*.zip
+prioritask
+prioritask_gui
+gui_test
+imgui.ini
+*.bundle
