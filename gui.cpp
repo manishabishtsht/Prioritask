@@ -138,6 +138,7 @@ struct TaskForm {
     int         priority = 3, difficulty = 3, energy = 3;
     int         estimated = 60, minimum = 30;
     bool        mandatory = false;
+    bool        needsOutside = false;
     std::string error;
 };
 
@@ -160,7 +161,10 @@ struct AppState {
 
     int                     energy = 3;
     bool                    haveSuggestions = false;
-    std::vector<Suggestion> suggestions;
+    AdviceResult            advice;          // the last answer, with its status
+    int                     adviceSlot = 0;  // the free slot it was asked for
+    int                     slotMinutes = 0; // free slot picked during a commitment
+    bool                    slotOutside = false;
     std::string             wakeText;
     int                     wakeSaved = -1;   // minutes, or -1 if none
     std::string             wakeMessage;
@@ -220,6 +224,7 @@ TaskForm formFromTask(const Task& t)
     f.estimated   = t.estimatedTime;
     f.minimum     = t.minTime;
     f.mandatory   = t.isMandatory;
+    f.needsOutside = t.needsOutside;
     return f;
 }
 
@@ -237,6 +242,7 @@ Task taskFromForm(const TaskForm& f)
     t.estimatedTime  = f.estimated;
     t.minTime        = f.minimum;
     t.isMandatory    = f.mandatory;
+    t.needsOutside   = f.needsOutside;
     return t;
 }
 
@@ -254,19 +260,32 @@ void computeSuggestions(Database& db, AppState& s)
         a.priority       = t.priority;
         a.energyRequired = t.energyRequired;
         a.estimatedTime  = t.estimatedTime;
+        a.minimumTime    = t.minTime;
         a.isMandatory    = t.isMandatory;
+        a.needsOutside   = t.needsOutside;
         a.isSleep        = tu::isSleepTask(t.title);
         if (!t.deadline.empty())
             a.hasDeadline = tu::minutesUntilDeadline(t.deadline, a.minutesToDeadline);
         items.push_back(a);
     }
 
-    AdviceContext ctx;
-    ctx.userEnergy  = s.energy;
-    ctx.nowMinutes  = tu::nowMinutes();
-    ctx.wakeMinutes = wake;
+    // During a commitment, only a free slot the user picked unlocks
+    // suggestions, and going out is off unless they ticked it.
+    std::string busyWith;
+    int freeAt = 0, left = 0;
+    bool busy = currentCommitment(s.commitments, tu::nowMinutes(), tu::todayIndex(),
+                                  busyWith, freeAt, left);
 
-    s.suggestions     = suggestNext(items, ctx, 3);
+    AdviceContext ctx;
+    ctx.userEnergy   = s.energy;
+    ctx.nowMinutes   = tu::nowMinutes();
+    ctx.wakeMinutes  = wake;
+    ctx.busyNow      = busy;
+    ctx.freeMinutes  = busy ? s.slotMinutes : 0;
+    ctx.allowOutside = busy ? s.slotOutside : true;
+
+    s.advice          = adviseNow(items, ctx, 3);
+    s.adviceSlot      = ctx.freeMinutes;
     s.haveSuggestions = true;
 }
 
@@ -322,6 +341,12 @@ void drawNowTab(Database& db, AppState& s, ImFont* large)
             else if (m < 24 * 60) ++dueSoon;
         }
     }
+    std::string busyWith;
+    int  freeAt = 0, busyLeft = 0;
+    bool busy = currentCommitment(s.commitments, tu::nowMinutes(), tu::todayIndex(),
+                                  busyWith, freeAt, busyLeft);
+    if (!busy) s.slotMinutes = 0;   // a free slot only means something during a commitment
+
     int wake    = (s.wakeSaved >= 0) ? s.wakeSaved : 7 * 60;
     int window  = tu::minutesUntil(wake);
     int freeMin = window - busyMinutesInWindow(s.commitments, tu::nowMinutes(), window, tu::todayIndex());
@@ -344,14 +369,31 @@ void drawNowTab(Database& db, AppState& s, ImFont* large)
     // Left: how you feel
     ImGui::BeginChild("feel_panel", ImVec2(leftW, height), ImGuiChildFlags_Borders);
     {
-        std::string busy;
-        int freeAt = 0, left = 0;
-        if (currentCommitment(s.commitments, tu::nowMinutes(), tu::todayIndex(), busy, freeAt, left)) {
+        if (busy) {
             ImGui::PushTextWrapPos(0.0f);
-            ImGui::TextColored(kWarn, "You're at %s until %s", busy.c_str(), tu::formatHM(freeAt).c_str());
-            ImGui::TextColored(kMuted, "%s left. Suggestions are for when you're free.",
-                               formatDuration(left).c_str());
+            ImGui::TextColored(kWarn, "You're at %s until %s", busyWith.c_str(), tu::formatHM(freeAt).c_str());
+            ImGui::TextColored(kMuted, "%s left. PrioriTask stays quiet unless you have a free slot.",
+                               formatDuration(busyLeft).c_str());
             ImGui::PopTextWrapPos();
+            ImGui::Spacing();
+
+            // Free-slot picker. Clicking the chosen one again clears it.
+            ImGui::TextColored(kMuted, "GOT A FREE SLOT?");
+            static const int choices[5] = {15, 30, 45, 60, 90};
+            for (int i = 0; i < 5; ++i) {
+                if (i) ImGui::SameLine();
+                char lbl[16];
+                std::snprintf(lbl, sizeof(lbl), "%d min", choices[i]);
+                bool on = (s.slotMinutes == choices[i]);
+                if (on ? primaryButton(lbl) : ImGui::Button(lbl)) {
+                    s.slotMinutes     = on ? 0 : choices[i];
+                    s.haveSuggestions = false;
+                }
+            }
+            if (ImGui::Checkbox("I'm okay going out (gym, shopping...)", &s.slotOutside))
+                s.haveSuggestions = false;
+            if (s.slotMinutes == 0)
+                ImGui::TextColored(kMuted, "Pick how long you're free to get suggestions.");
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
         }
 
@@ -365,7 +407,12 @@ void drawNowTab(Database& db, AppState& s, ImFont* large)
             s.haveSuggestions = false;
 
         ImGui::Spacing();
-        if (primaryButton("What should I do now?", ImVec2(-FLT_MIN, 46))) computeSuggestions(db, s);
+        char ask[48];
+        if (busy && s.slotMinutes > 0)
+            std::snprintf(ask, sizeof(ask), "What can I do in %d min?", s.slotMinutes);
+        else
+            std::snprintf(ask, sizeof(ask), "What should I do now?");
+        if (primaryButton(ask, ImVec2(-FLT_MIN, 46))) computeSuggestions(db, s);
 
         ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
         ImGui::TextColored(kMuted, "WAKE-UP TIME");
@@ -402,37 +449,63 @@ void drawNowTab(Database& db, AppState& s, ImFont* large)
     // Right: the suggestion
     ImGui::BeginChild("advice_panel", ImVec2(0, height), ImGuiChildFlags_Borders);
     {
+        // Lines saying what was left out, so nothing disappears silently.
+        auto hiddenNotes = [&s]() {
+            if (s.advice.hiddenOutside > 0)
+                ImGui::TextColored(kMuted, "%d task(s) hidden: they need going out", s.advice.hiddenOutside);
+            if (s.advice.hiddenTooLong > 0)
+                ImGui::TextColored(kMuted, "%d task(s) hidden: too long for this slot", s.advice.hiddenTooLong);
+        };
+
         if (!s.haveSuggestions) {
-            ImGui::TextColored(kMuted, "SUGGESTION");
+            ImGui::TextColored(kMuted, busy ? "QUIET MODE" : "SUGGESTION");
+            ImGui::Spacing();
+            ImGui::PushTextWrapPos(0.0f);
+            if (busy)
+                ImGui::TextColored(kMuted,
+                    "You're at %s, so nothing is suggested. If you have a free slot, pick how "
+                    "long on the left, and PrioriTask will suggest something that fits.", busyWith.c_str());
+            else
+                ImGui::TextColored(kMuted,
+                    "Set your energy on the left and press the button. PrioriTask will pick "
+                    "the best task for right now and explain why.");
+            ImGui::PopTextWrapPos();
+        } else if (s.advice.status == AdviceStatus::QuietBusy) {
+            ImGui::TextColored(kWarn, "QUIET MODE");
             ImGui::Spacing();
             ImGui::PushTextWrapPos(0.0f);
             ImGui::TextColored(kMuted,
-                "Set your energy on the left and press the button. PrioriTask will pick "
-                "the best task for right now and explain why.");
+                "You're at %s, so nothing is suggested. Pick a free slot on the left first.",
+                busyWith.c_str());
             ImGui::PopTextWrapPos();
-        } else if (s.suggestions.empty()) {
-            ImGui::TextColored(kGood, "Nothing pending right now. You're free.");
+        } else if (s.advice.status == AdviceStatus::NothingFits) {
+            if (s.adviceSlot > 0) ImGui::TextColored(kWarn, "Nothing fits in %d minutes.", s.adviceSlot);
+            else                  ImGui::TextColored(kGood, "Nothing pending right now. You're free.");
+            hiddenNotes();
         } else {
-            const Suggestion& top = s.suggestions[0];
-            ImGui::TextColored(kMuted, "DO THIS NOW");
+            const Suggestion& top = s.advice.suggestions[0];
+            ImGui::TextColored(kMuted, s.adviceSlot > 0 ? "DO THIS IN YOUR FREE SLOT" : "DO THIS NOW");
             if (large) ImGui::PushFont(large);
             ImGui::TextColored(kAccent, "%s", top.title.c_str());
             if (large) ImGui::PopFont();
             ImGui::TextColored(kMuted, "about %d minutes", top.estimatedTime);
             reasonsLine(top);
 
-            if (s.suggestions.size() > 1) {
+            if (s.advice.suggestions.size() > 1) {
                 ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
                 ImGui::TextColored(kMuted, "AFTER THAT");
-                for (std::size_t i = 1; i < s.suggestions.size(); ++i) {
-                    ImGui::Text("%d.  %s", static_cast<int>(i) + 1, s.suggestions[i].title.c_str());
+                for (std::size_t i = 1; i < s.advice.suggestions.size(); ++i) {
+                    const Suggestion& sg = s.advice.suggestions[i];
+                    ImGui::Text("%d.  %s", static_cast<int>(i) + 1, sg.title.c_str());
                     ImGui::SameLine();
-                    ImGui::TextColored(kMuted, "(about %d min)", s.suggestions[i].estimatedTime);
+                    ImGui::TextColored(kMuted, "(about %d min)", sg.estimatedTime);
                     ImGui::Indent();
-                    reasonsLine(s.suggestions[i]);
+                    reasonsLine(sg);
                     ImGui::Unindent();
                 }
             }
+            ImGui::Spacing();
+            hiddenNotes();
         }
     }
     ImGui::EndChild();
@@ -468,6 +541,7 @@ void drawTaskDialog(Database& db, AppState& s)
     f.minimum = std::clamp(f.minimum, 1, f.estimated);   // a floor can't exceed the ideal
 
     ImGui::Checkbox("Mandatory (never dropped)", &f.mandatory);
+    ImGui::Checkbox("Needs me to go out (gym, shopping...)", &f.needsOutside);
     ImGui::SetNextItemWidth(220);
     ImGui::InputTextWithHint("Deadline", "2026-10-20 18:00", &f.deadline);
 
@@ -545,13 +619,14 @@ void drawTasksTab(Database& db, AppState& s)
 
     ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                             ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_ScrollY;
-    if (ImGui::BeginTable("tasks", 8, flags, ImVec2(0, -ImGui::GetFrameHeightWithSpacing()))) {
+    if (ImGui::BeginTable("tasks", 9, flags, ImVec2(0, -ImGui::GetFrameHeightWithSpacing()))) {
         ImGui::TableSetupScrollFreeze(0, 1);
         ImGui::TableSetupColumn("Title",    ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("Pri",      ImGuiTableColumnFlags_WidthFixed, 40);
         ImGui::TableSetupColumn("Wants",    ImGuiTableColumnFlags_WidthFixed, 60);
         ImGui::TableSetupColumn("Floor",    ImGuiTableColumnFlags_WidthFixed, 60);
         ImGui::TableSetupColumn("Must",     ImGuiTableColumnFlags_WidthFixed, 50);
+        ImGui::TableSetupColumn("Out",      ImGuiTableColumnFlags_WidthFixed, 45);
         ImGui::TableSetupColumn("Deadline", ImGuiTableColumnFlags_WidthFixed, 160);
         ImGui::TableSetupColumn("Status",   ImGuiTableColumnFlags_WidthFixed, 100);
         ImGui::TableSetupColumn("",         ImGuiTableColumnFlags_WidthFixed, 190);
@@ -572,6 +647,7 @@ void drawTasksTab(Database& db, AppState& s)
             ImGui::TableNextColumn(); ImGui::Text("%d", t.estimatedTime);
             ImGui::TableNextColumn(); ImGui::Text("%d", t.minTime);
             ImGui::TableNextColumn(); ImGui::Text("%s", t.isMandatory ? "yes" : "");
+            ImGui::TableNextColumn(); ImGui::Text("%s", t.needsOutside ? "yes" : "");
 
             ImGui::TableNextColumn();
             long mins  = 0;

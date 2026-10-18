@@ -299,10 +299,11 @@ void listTasks(Database& db, bool pendingOnly)
               << std::setw(5)  << "pri"
               << std::setw(8)  << "wants"
               << std::setw(8)  << "floor"
+              << std::setw(6)  << "out"
               << "  " << std::left
               << std::setw(12) << "status"
               << "deadline" << "\n";
-    std::cout << std::string(78, '-') << "\n";
+    std::cout << std::string(84, '-') << "\n";
 
     int totalWanted = 0;
     for (const Task& t : tasks) {
@@ -313,12 +314,13 @@ void listTasks(Database& db, bool pendingOnly)
                   << std::setw(5)  << t.priority
                   << std::setw(8)  << t.estimatedTime
                   << std::setw(8)  << t.minTime
+                  << std::setw(6)  << (t.needsOutside ? "yes" : "")
                   << "  " << std::left
                   << std::setw(12) << t.status
                   << (t.deadline.empty() ? "-" : t.deadline) << "\n";
         totalWanted += t.estimatedTime;
     }
-    std::cout << std::string(78, '-') << "\n";
+    std::cout << std::string(84, '-') << "\n";
     std::cout << tasks.size() << " task(s), " << totalWanted
               << " minutes requested in total.\n";
 }
@@ -346,6 +348,7 @@ void addTask(Database& db)
     t.minTime = readInt("Minimum acceptable time in minutes: ", 1, t.estimatedTime);
 
     t.isMandatory = readYesNo("Is this mandatory? (y/n): ");
+    t.needsOutside = readYesNo("Does it need you to go out, e.g. gym or shopping? (y/n): ");
     t.deadline    = readDeadline(false, "");
 
     if (db.addTask(t)) std::cout << "Task added.\n";
@@ -545,15 +548,27 @@ void whatNow(Database& db)
 
     int wake = getWakeTime(db);
 
-    // If a commitment is running right now, say so: the suggestion is then
-    // for when it ends, not for this minute.
+    // During college or work, PrioriTask stays quiet unless the user says
+    // they have a free slot. Outside commitments nothing extra is asked.
     std::string busyWith;
-    int freeAt = 0, busyLeft = 0;
-    if (currentCommitment(loadCommitments(db), nowMinutes(), todayIndex(),
-                          busyWith, freeAt, busyLeft)) {
+    int  freeAt = 0, busyLeft = 0;
+    bool busy = currentCommitment(loadCommitments(db), nowMinutes(), todayIndex(),
+                                  busyWith, freeAt, busyLeft);
+    int  slot = 0;
+    bool allowOutside = true;
+
+    if (busy) {
         std::cout << "\nYou're at " << busyWith << " until " << formatHM(freeAt)
                   << " (" << formatDuration(busyLeft) << " left).\n"
-                  << "Here's what to do once you're free.\n";
+                  << "PrioriTask stays quiet during " << busyWith
+                  << " unless you have a free slot.\n";
+        slot = readInt("How many minutes are you free right now? (0 = not free): ", 0, 600);
+        if (slot == 0) {
+            std::cout << "OK. Nothing will be suggested until " << busyWith
+                      << " ends at " << formatHM(freeAt) << ".\n";
+            return;
+        }
+        allowOutside = readYesNo("Are you okay going out, e.g. gym or shopping? (y/n): ");
     }
 
     std::cout << "\nThe clock says " << formatHM(nowMinutes())
@@ -568,7 +583,9 @@ void whatNow(Database& db)
         a.priority       = t.priority;
         a.energyRequired = t.energyRequired;
         a.estimatedTime  = t.estimatedTime;
+        a.minimumTime    = t.minTime;
         a.isMandatory    = t.isMandatory;
+        a.needsOutside   = t.needsOutside;
         a.isSleep        = isSleepTask(t.title);
 
         if (!t.deadline.empty()) {
@@ -578,16 +595,29 @@ void whatNow(Database& db)
     }
 
     AdviceContext ctx;
-    ctx.userEnergy  = energy;
-    ctx.nowMinutes  = nowMinutes();
-    ctx.wakeMinutes = wake;
+    ctx.userEnergy   = energy;
+    ctx.nowMinutes   = nowMinutes();
+    ctx.wakeMinutes  = wake;
+    ctx.busyNow      = busy;
+    ctx.freeMinutes  = slot;
+    ctx.allowOutside = allowOutside;
 
-    std::vector<Suggestion> picks = suggestNext(items, ctx, 3);
+    AdviceResult r = adviseNow(items, ctx, 3);
 
-    if (picks.empty()) {
-        std::cout << "\nNothing suitable right now.\n";
+    auto printHidden = [&r]() {
+        if (r.hiddenOutside > 0)
+            std::cout << "  (" << r.hiddenOutside << " task(s) hidden: they need going out)\n";
+        if (r.hiddenTooLong > 0)
+            std::cout << "  (" << r.hiddenTooLong << " task(s) hidden: too long for this slot)\n";
+    };
+
+    if (r.status != AdviceStatus::Suggestions) {
+        if (slot > 0) std::cout << "\nNothing fits in " << slot << " minutes.\n";
+        else          std::cout << "\nNothing suitable right now.\n";
+        printHidden();
         return;
     }
+    const std::vector<Suggestion>& picks = r.suggestions;
 
     auto printReasons = [](const Suggestion& s) {
         std::cout << "     because: ";
@@ -610,6 +640,7 @@ void whatNow(Database& db)
             printReasons(picks[i]);
         }
     }
+    printHidden();
 }
 
 void editTask(Database& db)
@@ -644,6 +675,7 @@ void editTask(Database& db)
     t->minTime        = readIntKeep("Minimum acceptable time", 1, t->estimatedTime, minDefault);
 
     t->isMandatory    = readYesNoKeep("Mandatory? (y/n)", t->isMandatory);
+    t->needsOutside   = readYesNoKeep("Needs going out? (y/n)", t->needsOutside);
     t->deadline       = readDeadline(true, t->deadline);
 
     if (db.updateTask(*t)) std::cout << "Task updated.\n";
