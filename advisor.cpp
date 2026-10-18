@@ -128,3 +128,64 @@ std::vector<Suggestion> suggestNext(const std::vector<AdviceItem>& items,
     }
     return result;
 }
+
+
+// ---------------------------------------------------------------
+// adviseNow: the free-slot rules wrapped around suggestNext
+// ---------------------------------------------------------------
+AdviceResult adviseNow(const std::vector<AdviceItem>& items,
+                       const AdviceContext& ctx,
+                       std::size_t howMany)
+{
+    AdviceResult out;
+    bool slot = ctx.freeMinutes > 0;
+
+    // Rule 1: during college or work, say nothing until the user asks with
+    // a free slot. The app never interrupts a commitment on its own.
+    if (ctx.busyNow && !slot) {
+        out.status = AdviceStatus::QuietBusy;
+        return out;
+    }
+
+    // Rule 2: filter to what can actually be done right now.
+    std::vector<AdviceItem> doable;
+    for (const AdviceItem& it : items) {
+        if (it.needsOutside && !ctx.allowOutside) {
+            ++out.hiddenOutside;
+            continue;
+        }
+        if (slot) {
+            if (it.isSleep) continue;   // a free period is not for sleeping
+
+            // A task fits if its MINIMUM fits: a 90-minute task with a
+            // 30-minute floor can still use a 60-minute gap.
+            int floor = it.minimumTime > 0 ? it.minimumTime : it.estimatedTime;
+            if (floor > ctx.freeMinutes) {
+                ++out.hiddenTooLong;
+                continue;
+            }
+        }
+        doable.push_back(it);
+    }
+
+    out.suggestions = suggestNext(doable, ctx, howMany);
+
+    // Inside a slot, cap each suggestion at the time available and say so.
+    if (slot) {
+        for (Suggestion& s : out.suggestions) {
+            if (s.estimatedTime > ctx.freeMinutes) {
+                s.reasons.insert(s.reasons.begin(),
+                    "do " + std::to_string(ctx.freeMinutes) + " of its " +
+                    std::to_string(s.estimatedTime) + " min");
+                s.estimatedTime = ctx.freeMinutes;
+            } else {
+                s.reasons.insert(s.reasons.begin(),
+                    "fits your " + std::to_string(ctx.freeMinutes) + "-minute slot");
+            }
+        }
+    }
+
+    out.status = out.suggestions.empty() ? AdviceStatus::NothingFits
+                                         : AdviceStatus::Suggestions;
+    return out;
+}

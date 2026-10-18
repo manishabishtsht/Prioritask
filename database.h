@@ -16,6 +16,7 @@ struct Task {
     int estimatedTime = 0;   // minutes
     int minTime = 0;         // minutes
     bool isMandatory = false;
+    bool needsOutside = false;   // gym, shopping: can't be done at college or work
     std::string deadline;    // "YYYY-MM-DD HH:MM" or empty
     std::string status = "Pending";
 };
@@ -74,6 +75,7 @@ class Database {
             t.isMandatory    = sqlite3_column_int(stmt, 9) == 1;
             t.deadline       = colText(stmt, 10);
             t.status         = colText(stmt, 11);
+            t.needsOutside   = sqlite3_column_int(stmt, 12) == 1;
             tasks.push_back(t);
         }
         sqlite3_finalize(stmt);
@@ -113,6 +115,7 @@ public:
             "estimated_time INTEGER NOT NULL,"
             "min_time INTEGER NOT NULL,"
             "is_mandatory INTEGER NOT NULL DEFAULT 0,"
+            "needs_outside INTEGER NOT NULL DEFAULT 0,"
             "deadline TEXT,"
             "status TEXT NOT NULL DEFAULT 'Pending',"
             "created_at TEXT DEFAULT CURRENT_TIMESTAMP,"
@@ -121,6 +124,32 @@ public:
 
         char* err = nullptr;
         if (sqlite3_exec(db, sql, nullptr, nullptr, &err) != SQLITE_OK) {
+            std::cout << "Error: " << err << "\n";
+            sqlite3_free(err);
+            return false;
+        }
+        return addNeedsOutsideColumn();
+    }
+
+    // Databases made before the "needs going out" feature have no
+    // needs_outside column. Add it once, defaulting every existing task to
+    // 0 (can be done anywhere), so no row is lost or changed.
+    bool addNeedsOutsideColumn() {
+        bool found = false;
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, "PRAGMA table_info(tasks);", -1, &stmt, nullptr) != SQLITE_OK) {
+            std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
+            return false;
+        }
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            if (colText(stmt, 1) == "needs_outside") found = true;   // column 1 = name
+        }
+        sqlite3_finalize(stmt);
+        if (found) return true;
+
+        char* err = nullptr;
+        if (sqlite3_exec(db, "ALTER TABLE tasks ADD COLUMN needs_outside INTEGER NOT NULL DEFAULT 0;",
+                         nullptr, nullptr, &err) != SQLITE_OK) {
             std::cout << "Error: " << err << "\n";
             sqlite3_free(err);
             return false;
@@ -213,8 +242,8 @@ public:
     bool addTask(const Task& t) {
         const char* sql =
             "INSERT INTO tasks (title, description, category, priority, difficulty, "
-            "energy_required, estimated_time, min_time, is_mandatory, deadline) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?);";
+            "energy_required, estimated_time, min_time, is_mandatory, deadline, needs_outside) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?);";
 
         sqlite3_stmt* stmt = nullptr;
         if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -234,6 +263,7 @@ public:
         sqlite3_bind_int(stmt, 9, t.isMandatory ? 1 : 0);
         if (t.deadline.empty()) sqlite3_bind_null(stmt, 10);
         else sqlite3_bind_text(stmt, 10, t.deadline.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 11, t.needsOutside ? 1 : 0);
 
         bool ok = (sqlite3_step(stmt) == SQLITE_DONE);
         if (!ok) std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
@@ -247,8 +277,8 @@ public:
         const char* sql =
             "UPDATE tasks SET title = ?, description = ?, category = ?, "
             "priority = ?, difficulty = ?, energy_required = ?, "
-            "estimated_time = ?, min_time = ?, is_mandatory = ?, deadline = ? "
-            "WHERE task_id = ?;";
+            "estimated_time = ?, min_time = ?, is_mandatory = ?, deadline = ?, "
+            "needs_outside = ? WHERE task_id = ?;";
 
         sqlite3_stmt* stmt = nullptr;
         if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -268,7 +298,8 @@ public:
         sqlite3_bind_int (stmt, 9, t.isMandatory ? 1 : 0);
         if (t.deadline.empty()) sqlite3_bind_null(stmt, 10);
         else sqlite3_bind_text(stmt, 10, t.deadline.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int (stmt, 11, t.id);
+        sqlite3_bind_int (stmt, 11, t.needsOutside ? 1 : 0);
+        sqlite3_bind_int (stmt, 12, t.id);
 
         bool ok = (sqlite3_step(stmt) == SQLITE_DONE);
         if (!ok) std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
@@ -284,7 +315,7 @@ public:
     std::vector<Task> getAllTasks() {
         return runTaskQuery(
             "SELECT task_id, title, description, category, priority, difficulty, "
-            "energy_required, estimated_time, min_time, is_mandatory, deadline, status "
+            "energy_required, estimated_time, min_time, is_mandatory, deadline, status, needs_outside "
             "FROM tasks ORDER BY task_id;");
     }
 
@@ -293,7 +324,7 @@ public:
     std::vector<Task> getPendingTasks() {
         return runTaskQuery(
             "SELECT task_id, title, description, category, priority, difficulty, "
-            "energy_required, estimated_time, min_time, is_mandatory, deadline, status "
+            "energy_required, estimated_time, min_time, is_mandatory, deadline, status, needs_outside "
             "FROM tasks WHERE status <> 'Completed' ORDER BY task_id;");
     }
 
