@@ -667,29 +667,29 @@ Observed Result &
 Status\\
 \midrule
 
-Compression, 4 budgets &
-Matches hand computation &
-Exact match; 500 min short by 85 &
+Surplus budget (800 min) &
+No compression; total 735 &
+All tasks at ideal duration &
 Pass\\
 
-Policy (700 min) &
-Weighted protects priority 5 &
-Loses 3 min versus 6 &
+Moderate deficit (700 min) &
+Allocates to 700, minimums respected &
+Exact match to hand computation &
 Pass\\
 
-Task-dropping &
-Mandatory never dropped &
-All 10 checks pass &
+Severe deficit (600 min) &
+Allocates to 600 &
+Three tasks reach floors and stop contributing &
 Pass\\
 
-Commitments &
-Overlaps merged correctly &
-All 37 checks pass &
+Infeasible (500 min) &
+Flagged with shortfall &
+Shortfall of 85 minutes reported &
 Pass\\
 
-CLI versus GUI &
-Same plan in both &
-62, 30, 422, 31 min &
+Policy differentiation (700 min) &
+Weighted protects priority-5 work &
+Priority-5 loses 3 min versus 6 under equal split &
 Pass\\
 
 \bottomrule
