@@ -828,8 +828,7 @@ amalgamation integration and build configuration &
 \scriptsize
 \item Added \texttt{min\_time} and \texttt{is\_mandatory} before any scheduling
       code was written, avoiding a later migration
-\item Treated the rule as a policy choice; built and compared two
-\item Moved builds to Ubuntu (WSL); set the Indian time zone
+\item Recognised the compression rule as a \emph{policy decision}
 \end{itemize}
 
 \column{.48\textwidth}
@@ -838,11 +837,13 @@ amalgamation integration and build configuration &
 
 \begin{enumerate}\itemsep
 \scriptsize
-\item Separate routines from tasks; add \texttt{fixed\_start}
-\item Assign start times to planned tasks
-\item Plan only tasks due soon
-\item Compare greedy dropping with optimal 0/1 knapsack
-\item CMake build, README with screenshots
+\item Complete the desktop front end and wire all three layers end to end
+\item Proper scheduler output into the \texttt{day\_plan} table
+\item Task-dropping through a priority queue, using \texttt{is\_mandatory} and
+      priority
+\item Separate recurring routines from single time tasks; add a
+      \texttt{fixed\_start} column
+\item Energy-based task matching and rule-based suggestion.
 \end{enumerate}
 
 \end{columns}
