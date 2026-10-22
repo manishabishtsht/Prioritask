@@ -504,10 +504,10 @@ Persistence + Scheduler\\
 
 \midrule
 
-Operating Systems &
-Allocation of a fixed resource under contention --- equal versus
-priority-weighted distribution, an analogue of CPU-time policy &
-Scheduler\\
+Design \& Analysis of Algorithms &
+Greedy task-dropping using a heap, $O(n \log n)$; sort-and-sweep merging of
+busy intervals, $O(n \log n)$ &
+Scheduler, Commitments\\
 
 DBMS &
 Four tables; foreign key, CHECK, UNIQUE constraints; transactions &
@@ -605,44 +605,44 @@ Brief Discussion: Remaining: routines, start times, CMake build.
 % ============================================================
 % SLIDE 10
 % ============================================================
-\begin{frame}{Working Prototype / Demonstration}
+\begin{frame}[t]{Working Prototype / Demonstration}
 
-\begin{columns}[T,totalwidth=\textwidth]
-
-\column{.45\textwidth}
-
+\vspace*{-7mm}
 \textbf{\color{GEUBlue}Implemented Features}
 
-\begin{itemize}\itemsep3pt
-\scriptsize
-\item What now: best task right now, with reasons
-\item Plan my day: shrinks, then drops, to fit the day
-\item Free-slot mode: quiet during college hours
-\item Tasks and weekly commitments: add, edit, delete
-\item Same engine behind the CLI and the GUI
+\begin{columns}[T,totalwidth=\textwidth]
+\column{.49\textwidth}
+\begin{itemize}\itemsep0pt\footnotesize
+\item {What now: best task right now, with reasons
+}
+\item {Plan my day: shrinks, then drops, to fit the day
+}
 \end{itemize}
-
-\column{.51\textwidth}
-
-\begin{block}{Prototype / Output}
-
-\centering
-\vspace{6mm}
-
-\includegraphics[width=.48\linewidth]{whatnow.png}\hfill
-\includegraphics[width=.48\linewidth]{planday.png}
-
-\vspace{6mm}
-
-\end{block}
-
+\column{.49\textwidth}
+\begin{itemize}\itemsep0pt\footnotesize
+\item {Free-slot mode: quiet during college hours
+}
+\item {Tasks and weekly commitments: add, edit, delete
+}
+\end{itemize}
 \end{columns}
 
-\vfill
+\vspace{2mm}
 
-\smallnote{
-Brief Discussion: Live demo --- add a task, Plan my day.
-}
+\textbf{\color{GEUBlue}Prototype / Output}
+
+\vspace{1mm}
+\centering
+\begin{minipage}[t]{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=2.75cm,keepaspectratio]{Screenshot (283).png}\\[0.5mm]
+  {\scriptsize\color{GEUGrey} }
+\end{minipage}\hfill
+\begin{minipage}[t]{0.49\linewidth}
+  \centering
+  \includegraphics[width=\linewidth,height=2.75cm,keepaspectratio]{Screenshot (284).png}\\[0.5mm]
+  {\scriptsize\color{GEUGrey} }
+\end{minipage}
 
 \end{frame}
 
