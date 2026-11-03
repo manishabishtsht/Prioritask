@@ -11,7 +11,6 @@
 #include "database.h"
 #include "scheduler.h"
 
-#include <algorithm>
 #include <cctype>
 #include <cstdio>
 #include <ctime>
@@ -19,7 +18,6 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 // ---------------------------------------------------------------
 // Input helpers
@@ -261,9 +259,9 @@ int todayIndex()
 
 // Reads commitments from the database and turns their "HH:MM" text into
 // minutes for the commitments module. Rows that can't be read are skipped.
-std::vector<CommitmentBlock> loadCommitments(Database& db)
+DynArray<CommitmentBlock> loadCommitments(Database& db)
 {
-    std::vector<CommitmentBlock> out;
+    DynArray<CommitmentBlock> out;
     for (const CommitmentRow& r : db.getCommitments()) {
         int s = parseHM(r.start);
         int e = parseHM(r.end);
@@ -285,7 +283,7 @@ std::vector<CommitmentBlock> loadCommitments(Database& db)
 
 void listTasks(Database& db, bool pendingOnly)
 {
-    std::vector<Task> tasks = pendingOnly ? db.getPendingTasks() : db.getAllTasks();
+    DynArray<Task> tasks = pendingOnly ? db.getPendingTasks() : db.getAllTasks();
 
     if (tasks.empty()) {
         std::cout << "\nNo tasks found.\n";
@@ -368,7 +366,7 @@ void markComplete(Database& db)
 // time available, shows the result, and offers to save it.
 void planDay(Database& db)
 {
-    std::vector<Task> tasks = db.getPendingTasks();
+    DynArray<Task> tasks = db.getPendingTasks();
     if (tasks.empty()) {
         std::cout << "\nNothing pending. Nothing to plan.\n";
         return;
@@ -377,7 +375,7 @@ void planDay(Database& db)
     // Convert database rows into the plain structs the scheduler accepts.
     // The scheduler knows nothing about SQLite; this is where the two
     // layers meet.
-    std::vector<ShrinkItem> items;
+    DynArray<ShrinkItem> items;
     int totalWanted = 0, totalFloor = 0;
 
     for (const Task& t : tasks) {
@@ -478,7 +476,7 @@ void planDay(Database& db)
     }
 
     if (readYesNo("\nSave this plan? (y/n): ")) {
-        std::vector<PlanRow> rows;
+        DynArray<PlanRow> rows;
         for (const Allocation& a : plan.kept.allocations) {
             PlanRow p;
             p.taskId    = a.id;
@@ -540,7 +538,7 @@ bool isSleepTask(const std::string& title)
 
 void whatNow(Database& db)
 {
-    std::vector<Task> tasks = db.getPendingTasks();
+    DynArray<Task> tasks = db.getPendingTasks();
     if (tasks.empty()) {
         std::cout << "\nNothing pending. You're free.\n";
         return;
@@ -575,7 +573,7 @@ void whatNow(Database& db)
               << ", but only you know how you feel.\n";
     int energy = readInt("Your energy right now, 1 (drained) to 5 (sharp): ", 1, 5);
 
-    std::vector<AdviceItem> items;
+    DynArray<AdviceItem> items;
     for (const Task& t : tasks) {
         AdviceItem a;
         a.id             = t.id;
@@ -617,7 +615,7 @@ void whatNow(Database& db)
         printHidden();
         return;
     }
-    const std::vector<Suggestion>& picks = r.suggestions;
+    const DynArray<Suggestion>& picks = r.suggestions;
 
     auto printReasons = [](const Suggestion& s) {
         std::cout << "     because: ";
@@ -645,7 +643,7 @@ void whatNow(Database& db)
 
 void editTask(Database& db)
 {
-    std::vector<Task> tasks = db.getAllTasks();
+    DynArray<Task> tasks = db.getAllTasks();
     listTasks(db, false);
     if (tasks.empty()) return;
 
@@ -671,7 +669,7 @@ void editTask(Database& db)
 
     // If the ideal time was cut below the old minimum, the old minimum is
     // no longer allowed, so offer the new ideal as the default instead.
-    int minDefault = std::min(t->minTime, t->estimatedTime);
+    int minDefault = minOf(t->minTime, t->estimatedTime);
     t->minTime        = readIntKeep("Minimum acceptable time", 1, t->estimatedTime, minDefault);
 
     t->isMandatory    = readYesNoKeep("Mandatory? (y/n)", t->isMandatory);
@@ -711,7 +709,7 @@ void changeWakeTime(Database& db)
 
 void listCommitmentsUI(Database& db)
 {
-    std::vector<CommitmentRow> rows = db.getCommitments();
+    DynArray<CommitmentRow> rows = db.getCommitments();
     std::cout << "\nYour fixed commitments:\n";
     if (rows.empty()) {
         std::cout << "  (none yet - add college, school, office hours, tuition...)\n";

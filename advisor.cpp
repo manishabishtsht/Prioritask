@@ -2,7 +2,6 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <queue>
 #include <string>
 
 std::string formatDuration(long minutes)
@@ -43,12 +42,12 @@ struct WorseThan {
 } // namespace
 
 
-std::vector<Suggestion> suggestNext(const std::vector<AdviceItem>& items,
+DynArray<Suggestion> suggestNext(const DynArray<AdviceItem>& items,
                                     const AdviceContext& ctx,
                                     std::size_t howMany)
 {
-    // A max-heap: the top is always the best remaining suggestion.
-    std::priority_queue<Suggestion, std::vector<Suggestion>, WorseThan> heap;
+    // A max-heap (our own BinaryHeap): the top is always the best remaining suggestion.
+    BinaryHeap<Suggestion, WorseThan> heap;
 
     for (const AdviceItem& it : items) {
         Suggestion s;
@@ -121,7 +120,7 @@ std::vector<Suggestion> suggestNext(const std::vector<AdviceItem>& items,
         heap.push(s);
     }
 
-    std::vector<Suggestion> result;
+    DynArray<Suggestion> result;
     while (!heap.empty() && result.size() < howMany) {
         result.push_back(heap.top());
         heap.pop();
@@ -133,7 +132,7 @@ std::vector<Suggestion> suggestNext(const std::vector<AdviceItem>& items,
 // ---------------------------------------------------------------
 // adviseNow: the free-slot rules wrapped around suggestNext
 // ---------------------------------------------------------------
-AdviceResult adviseNow(const std::vector<AdviceItem>& items,
+AdviceResult adviseNow(const DynArray<AdviceItem>& items,
                        const AdviceContext& ctx,
                        std::size_t howMany)
 {
@@ -148,7 +147,7 @@ AdviceResult adviseNow(const std::vector<AdviceItem>& items,
     }
 
     // Rule 2: filter to what can actually be done right now.
-    std::vector<AdviceItem> doable;
+    DynArray<AdviceItem> doable;
     for (const AdviceItem& it : items) {
         if (it.needsOutside && !ctx.allowOutside) {
             ++out.hiddenOutside;

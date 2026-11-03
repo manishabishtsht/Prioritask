@@ -2,7 +2,8 @@
 #define COMMITMENTS_H
 
 #include <string>
-#include <vector>
+
+#include "dsa.h"
 
 // ---------------------------------------------------------------
 // Fixed commitments: recurring blocks of time when the user is busy.
@@ -34,7 +35,7 @@ std::string daysToText(const std::string& mask);
 // and lasts windowLen minutes. nowMin is minutes since midnight today;
 // todayIdx is today's weekday, 0 = Monday ... 6 = Sunday.
 // Overlapping commitments are counted once, not twice.
-int busyMinutesInWindow(const std::vector<CommitmentBlock>& blocks,
+int busyMinutesInWindow(const DynArray<CommitmentBlock>& blocks,
                         int nowMin, int windowLen, int todayIdx);
 
 // If the user is inside a commitment right now, returns true and fills in:
@@ -42,7 +43,7 @@ int busyMinutesInWindow(const std::vector<CommitmentBlock>& blocks,
 //   freeAtMin   - clock time they're next free (minutes since midnight);
 //                 back-to-back commitments are treated as one block
 //   minutesLeft - how long until then
-bool currentCommitment(const std::vector<CommitmentBlock>& blocks,
+bool currentCommitment(const DynArray<CommitmentBlock>& blocks,
                        int nowMin, int todayIdx,
                        std::string& label, int& freeAtMin, int& minutesLeft);
 

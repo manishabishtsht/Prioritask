@@ -3,7 +3,8 @@
 
 #include <cstddef>
 #include <string>
-#include <vector>
+
+#include "dsa.h"
 
 // ---------------------------------------------------------------
 // Rule-based "what should I do now?" engine.
@@ -47,12 +48,12 @@ struct Suggestion {
     int                      score         = 0;
     int                      priority      = 0;
     int                      estimatedTime = 0;
-    std::vector<std::string> reasons;
+    DynArray<std::string> reasons;
 };
 
 // Returns up to `howMany` suggestions, best first. Scoring only: no
 // free-slot rules. Front ends should call adviseNow() instead.
-std::vector<Suggestion> suggestNext(const std::vector<AdviceItem>& items,
+DynArray<Suggestion> suggestNext(const DynArray<AdviceItem>& items,
                                     const AdviceContext& ctx,
                                     std::size_t howMany);
 
@@ -64,7 +65,7 @@ enum class AdviceStatus {
 
 struct AdviceResult {
     AdviceStatus            status = AdviceStatus::Suggestions;
-    std::vector<Suggestion> suggestions;
+    DynArray<Suggestion> suggestions;
     int hiddenTooLong = 0;   // left out: even their minimum is longer than the slot
     int hiddenOutside = 0;   // left out: they need going out, and that wasn't allowed
 };
@@ -75,7 +76,7 @@ struct AdviceResult {
 //     and nothing that needs going out unless allowed. Each suggestion's
 //     time is capped at the slot.
 //  3. Otherwise -> the normal scored suggestions.
-AdviceResult adviseNow(const std::vector<AdviceItem>& items,
+AdviceResult adviseNow(const DynArray<AdviceItem>& items,
                        const AdviceContext& ctx,
                        std::size_t howMany);
 

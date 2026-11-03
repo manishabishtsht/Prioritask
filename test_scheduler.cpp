@@ -9,7 +9,7 @@
 #include <iomanip>
 #include <iostream>
 
-static void compare(const std::vector<ShrinkItem>& items, int budget)
+static void compare(const DynArray<ShrinkItem>& items, int budget)
 {
     ShrinkResult eq = shrinkEqualSplit(items, budget);
     ShrinkResult wt = shrinkWeighted(items, budget);
@@ -52,14 +52,13 @@ static void compare(const std::vector<ShrinkItem>& items, int budget)
 int main()
 {
     // Your actual tasks table. Last field is priority.
-    std::vector<ShrinkItem> items = {
-        {1, "DSA Assignment", 90,  60, 5},
-        {2, "Gym",            60,  30, 3},
-        {3, "Sleep",         450, 420, 5},
-        {4, "Watch Lecture",  45,  30, 5},
-        {5, "Read Book",      30,  15, 1},
-        {6, "Revise Maths",   60,  30, 4}
-    };
+    DynArray<ShrinkItem> items;
+    items.push_back({1, "DSA Assignment", 90,  60, 5});
+    items.push_back({2, "Gym",            60,  30, 3});
+    items.push_back({3, "Sleep",         450, 420, 5});
+    items.push_back({4, "Watch Lecture",  45,  30, 5});
+    items.push_back({5, "Read Book",      30,  15, 1});
+    items.push_back({6, "Revise Maths",   60,  30, 4});
     // wants 735 minutes, floors sum to 585
 
     compare(items, 800);   // fits already

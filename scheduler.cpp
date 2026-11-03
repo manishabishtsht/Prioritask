@@ -1,8 +1,6 @@
 #include "scheduler.h"
 
-#include <algorithm>
 #include <cstddef>
-#include <queue>
 
 // ---------------------------------------------------------------
 // Shared setup. Hands back the starting allocations and the totals,
@@ -10,7 +8,7 @@
 // ---------------------------------------------------------------
 namespace {
 
-void prepare(const std::vector<ShrinkItem>& items,
+void prepare(const DynArray<ShrinkItem>& items,
              ShrinkResult& result,
              int& totalRequested,
              int& totalMinimum)
@@ -33,7 +31,7 @@ void prepare(const std::vector<ShrinkItem>& items,
 
 // Returns true if the caller should stop early: either nothing needs
 // cutting, or not even the floors will fit.
-bool handleTrivialCases(const std::vector<ShrinkItem>& items,
+bool handleTrivialCases(const DynArray<ShrinkItem>& items,
                         ShrinkResult& result,
                         int totalRequested,
                         int totalMinimum,
@@ -77,7 +75,7 @@ int weightOf(int priority)
 // ---------------------------------------------------------------
 // POLICY A: equal split
 // ---------------------------------------------------------------
-ShrinkResult shrinkEqualSplit(const std::vector<ShrinkItem>& items,
+ShrinkResult shrinkEqualSplit(const DynArray<ShrinkItem>& items,
                               int availableMinutes)
 {
     ShrinkResult result;
@@ -91,7 +89,7 @@ ShrinkResult shrinkEqualSplit(const std::vector<ShrinkItem>& items,
 
     while (deficit > 0) {
 
-        std::vector<std::size_t> flexible;
+        DynArray<std::size_t> flexible;
         for (std::size_t i = 0; i < items.size(); ++i) {
             if (result.allocations[i].allocated > items[i].minimum) {
                 flexible.push_back(i);
@@ -112,7 +110,7 @@ ShrinkResult shrinkEqualSplit(const std::vector<ShrinkItem>& items,
             if (deficit == 0) break;
 
             int room = result.allocations[idx].allocated - items[idx].minimum;
-            int cut  = std::min(share, std::min(room, deficit));
+            int cut  = minOf(share, minOf(room, deficit));
 
             result.allocations[idx].allocated -= cut;
             deficit -= cut;
@@ -131,7 +129,7 @@ ShrinkResult shrinkEqualSplit(const std::vector<ShrinkItem>& items,
 // Items that reach their floor drop out and the rest is redistributed
 // on the next pass.
 // ---------------------------------------------------------------
-ShrinkResult shrinkWeighted(const std::vector<ShrinkItem>& items,
+ShrinkResult shrinkWeighted(const DynArray<ShrinkItem>& items,
                             int availableMinutes)
 {
     ShrinkResult result;
@@ -145,7 +143,7 @@ ShrinkResult shrinkWeighted(const std::vector<ShrinkItem>& items,
 
     while (deficit > 0) {
 
-        std::vector<std::size_t> flexible;
+        DynArray<std::size_t> flexible;
         for (std::size_t i = 0; i < items.size(); ++i) {
             if (result.allocations[i].allocated > items[i].minimum) {
                 flexible.push_back(i);
@@ -160,7 +158,7 @@ ShrinkResult shrinkWeighted(const std::vector<ShrinkItem>& items,
         // Score every flexible item. long long because deficit * score can
         // get large before the division.
         long long totalScore = 0;
-        std::vector<long long> score(flexible.size(), 0);
+        DynArray<long long> score(flexible.size(), 0);
 
         for (std::size_t k = 0; k < flexible.size(); ++k) {
             std::size_t idx = flexible[k];
@@ -184,7 +182,7 @@ ShrinkResult shrinkWeighted(const std::vector<ShrinkItem>& items,
                 (static_cast<long long>(passDeficit) * score[k]) / totalScore);
 
             int room = result.allocations[idx].allocated - items[idx].minimum;
-            int cut  = std::min(share, std::min(room, deficit));
+            int cut  = minOf(share, minOf(room, deficit));
 
             result.allocations[idx].allocated -= cut;
             deficit     -= cut;
@@ -237,7 +235,7 @@ struct LessDroppable {
 } // namespace
 
 
-PlanResult planWithDropping(const std::vector<ShrinkItem>& items,
+PlanResult planWithDropping(const DynArray<ShrinkItem>& items,
                             int availableMinutes)
 {
     PlanResult out;
@@ -245,13 +243,13 @@ PlanResult planWithDropping(const std::vector<ShrinkItem>& items,
     int totalFloor = 0;
     for (const ShrinkItem& it : items) totalFloor += it.minimum;
 
-    std::vector<bool> keep(items.size(), true);
-    std::vector<std::size_t> dropOrder;   // least valuable first
+    DynArray<bool> keep(items.size(), true);
+    DynArray<std::size_t> dropOrder;   // least valuable first
 
     if (totalFloor > availableMinutes) {
 
         // Only non-mandatory tasks are candidates.
-        std::priority_queue<DropCandidate, std::vector<DropCandidate>, LessDroppable> heap;
+        BinaryHeap<DropCandidate, LessDroppable> heap;
         for (std::size_t i = 0; i < items.size(); ++i) {
             if (!items[i].mandatory) {
                 heap.push({i, items[i].priority, items[i].minimum, items[i].id});
@@ -270,16 +268,17 @@ PlanResult planWithDropping(const std::vector<ShrinkItem>& items,
         // Restore pass. Greedy can overshoot: dropping a small task, then a
         // large one, may free far more than needed. Try putting tasks back,
         // most valuable first (reverse of the drop order).
-        for (auto it = dropOrder.rbegin(); it != dropOrder.rend(); ++it) {
-            if (totalFloor + items[*it].minimum <= availableMinutes) {
-                keep[*it]   = true;
-                totalFloor += items[*it].minimum;
+        for (std::size_t k = dropOrder.size(); k-- > 0; ) {
+            std::size_t idx = dropOrder[k];
+            if (totalFloor + items[idx].minimum <= availableMinutes) {
+                keep[idx]   = true;
+                totalFloor += items[idx].minimum;
             }
         }
     }
 
     // Split into kept and dropped.
-    std::vector<ShrinkItem> keptItems;
+    DynArray<ShrinkItem> keptItems;
     for (std::size_t i = 0; i < items.size(); ++i) {
         if (keep[i]) keptItems.push_back(items[i]);
     }

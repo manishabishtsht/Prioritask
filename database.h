@@ -1,7 +1,7 @@
 #pragma once
 #include <iostream>
 #include <string>
-#include <vector>
+#include "dsa.h"
 #include "sqlite3.h"
 
 // One task in C++ (matches one row of the table)
@@ -52,8 +52,8 @@ class Database {
 
     // Shared by getAllTasks and getPendingTasks so the column order is
     // written out only once.
-    std::vector<Task> runTaskQuery(const char* sql) {
-        std::vector<Task> tasks;
+    DynArray<Task> runTaskQuery(const char* sql) {
+        DynArray<Task> tasks;
 
         sqlite3_stmt* stmt = nullptr;
         if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -312,7 +312,7 @@ public:
         return ok;
     }
 
-    std::vector<Task> getAllTasks() {
+    DynArray<Task> getAllTasks() {
         return runTaskQuery(
             "SELECT task_id, title, description, category, priority, difficulty, "
             "energy_required, estimated_time, min_time, is_mandatory, deadline, status, needs_outside "
@@ -321,7 +321,7 @@ public:
 
     // Only what still needs doing. This is what the scheduler should see;
     // planning around finished work would be wrong.
-    std::vector<Task> getPendingTasks() {
+    DynArray<Task> getPendingTasks() {
         return runTaskQuery(
             "SELECT task_id, title, description, category, priority, difficulty, "
             "energy_required, estimated_time, min_time, is_mandatory, deadline, status, needs_outside "
@@ -395,8 +395,8 @@ public:
         return ok;
     }
 
-    std::vector<CommitmentRow> getCommitments() {
-        std::vector<CommitmentRow> out;
+    DynArray<CommitmentRow> getCommitments() {
+        DynArray<CommitmentRow> out;
         const char* sql =
             "SELECT commitment_id, label, days, start_time, end_time "
             "FROM commitments ORDER BY start_time, commitment_id;";
@@ -485,7 +485,7 @@ public:
     // Writes one day's allocations. INSERT OR REPLACE means re-planning the
     // same date overwrites the old plan instead of failing on the UNIQUE
     // constraint. Wrapped in a transaction so a partial plan is never saved.
-    bool savePlan(const std::string& date, const std::vector<PlanRow>& rows) {
+    bool savePlan(const std::string& date, const DynArray<PlanRow>& rows) {
         if (rows.empty()) return true;
 
         char* err = nullptr;

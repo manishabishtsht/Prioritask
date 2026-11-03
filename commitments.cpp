@@ -1,8 +1,6 @@
 #include "commitments.h"
 
-#include <algorithm>
 #include <cctype>
-#include <sstream>
 
 namespace {
 
@@ -46,9 +44,9 @@ struct Interval {
 // Every occurrence of every commitment on yesterday, today and tomorrow.
 // Yesterday is needed because a night shift that started yesterday may
 // still be running now.
-std::vector<Interval> occurrences(const std::vector<CommitmentBlock>& blocks, int todayIdx)
+DynArray<Interval> occurrences(const DynArray<CommitmentBlock>& blocks, int todayIdx)
 {
-    std::vector<Interval> out;
+    DynArray<Interval> out;
     for (int d = -1; d <= 1; ++d) {
         int weekday = ((todayIdx + d) % 7 + 7) % 7;
         for (const CommitmentBlock& b : blocks) {
@@ -65,15 +63,14 @@ std::vector<Interval> occurrences(const std::vector<CommitmentBlock>& blocks, in
 // right, extending the current block whenever the next one overlaps or
 // touches it. O(n log n). This is what stops a 9-4 lecture block and a
 // 2-5 lab being counted as 10 hours of busy time instead of 8.
-std::vector<Interval> mergeIntervals(std::vector<Interval> v)
+DynArray<Interval> mergeIntervals(DynArray<Interval> v)
 {
-    std::sort(v.begin(), v.end(),
-              [](const Interval& a, const Interval& b) { return a.start < b.start; });
+    mergeSort(v, [](const Interval& a, const Interval& b) { return a.start < b.start; });
 
-    std::vector<Interval> merged;
+    DynArray<Interval> merged;
     for (const Interval& iv : v) {
         if (!merged.empty() && iv.start <= merged.back().end) {
-            merged.back().end = std::max(merged.back().end, iv.end);
+            merged.back().end = maxOf(merged.back().end, iv.end);
         } else {
             merged.push_back(iv);
         }
@@ -92,12 +89,15 @@ std::string parseDays(const std::string& text)
     if (t == "weekends" || t == "weekend")   return "0000011";
 
     std::string mask = "0000000";
-    std::stringstream ss(t);
-    std::string part;
     bool any = false;
 
-    while (std::getline(ss, part, ',')) {
-        part = trim(part);
+    // Split on commas by hand: each piece runs from pos up to the next comma.
+    std::size_t pos = 0;
+    while (pos <= t.size()) {
+        std::size_t comma = t.find(',', pos);
+        if (comma == std::string::npos) comma = t.size();
+        std::string part = trim(t.substr(pos, comma - pos));
+        pos = comma + 1;
         if (part.empty()) continue;
 
         std::size_t dash = part.find('-');
@@ -145,7 +145,7 @@ std::string daysToText(const std::string& mask)
     return out;
 }
 
-int busyMinutesInWindow(const std::vector<CommitmentBlock>& blocks,
+int busyMinutesInWindow(const DynArray<CommitmentBlock>& blocks,
                         int nowMin, int windowLen, int todayIdx)
 {
     int wStart = nowMin;
@@ -153,10 +153,10 @@ int busyMinutesInWindow(const std::vector<CommitmentBlock>& blocks,
 
     // Clip every occurrence to the window, then merge so overlaps are
     // counted once.
-    std::vector<Interval> clipped;
+    DynArray<Interval> clipped;
     for (const Interval& iv : occurrences(blocks, todayIdx)) {
-        int s = std::max(iv.start, wStart);
-        int e = std::min(iv.end,   wEnd);
+        int s = maxOf(iv.start, wStart);
+        int e = minOf(iv.end,   wEnd);
         if (e > s) clipped.push_back({s, e, iv.label});
     }
 
@@ -165,11 +165,11 @@ int busyMinutesInWindow(const std::vector<CommitmentBlock>& blocks,
     return total;
 }
 
-bool currentCommitment(const std::vector<CommitmentBlock>& blocks,
+bool currentCommitment(const DynArray<CommitmentBlock>& blocks,
                        int nowMin, int todayIdx,
                        std::string& label, int& freeAtMin, int& minutesLeft)
 {
-    std::vector<Interval> occ = occurrences(blocks, todayIdx);
+    DynArray<Interval> occ = occurrences(blocks, todayIdx);
 
     // Which commitment is running right now? If several, the one ending last.
     const Interval* hit = nullptr;
