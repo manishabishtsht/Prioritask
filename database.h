@@ -17,6 +17,7 @@ struct Task {
     int minTime = 0;         // minutes
     bool isMandatory = false;
     bool needsOutside = false;   // gym, shopping: can't be done at college or work
+    std::string completedAt; // local time "YYYY-MM-DD HH:MM:SS", empty if not done
     std::string deadline;    // "YYYY-MM-DD HH:MM" or empty
     std::string status = "Pending";
 };
@@ -76,6 +77,7 @@ class Database {
             t.deadline       = colText(stmt, 10);
             t.status         = colText(stmt, 11);
             t.needsOutside   = sqlite3_column_int(stmt, 12) == 1;
+            t.completedAt    = colText(stmt, 13);
             tasks.push_back(t);
         }
         sqlite3_finalize(stmt);
@@ -315,7 +317,8 @@ public:
     DynArray<Task> getAllTasks() {
         return runTaskQuery(
             "SELECT task_id, title, description, category, priority, difficulty, "
-            "energy_required, estimated_time, min_time, is_mandatory, deadline, status, needs_outside "
+            "energy_required, estimated_time, min_time, is_mandatory, deadline, status, needs_outside, "
+            "datetime(completed_at, 'localtime') "
             "FROM tasks ORDER BY task_id;");
     }
 
@@ -324,7 +327,8 @@ public:
     DynArray<Task> getPendingTasks() {
         return runTaskQuery(
             "SELECT task_id, title, description, category, priority, difficulty, "
-            "energy_required, estimated_time, min_time, is_mandatory, deadline, status, needs_outside "
+            "energy_required, estimated_time, min_time, is_mandatory, deadline, status, needs_outside, "
+            "datetime(completed_at, 'localtime') "
             "FROM tasks WHERE status <> 'Completed' ORDER BY task_id;");
     }
 
@@ -438,6 +442,27 @@ public:
             return false;
         }
         return ok;
+    }
+
+    // Days between from and to ("YYYY-MM-DD", inclusive) that have a saved
+    // plan. GROUP BY turns the many rows of one day's plan into one row.
+    DynArray<std::string> getPlannedDays(const std::string& from, const std::string& to) {
+        DynArray<std::string> days;
+        const char* sql =
+            "SELECT plan_date FROM day_plan "
+            "WHERE plan_date BETWEEN ? AND ? "
+            "GROUP BY plan_date ORDER BY plan_date;";
+
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
+            return days;
+        }
+        sqlite3_bind_text(stmt, 1, from.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, to.c_str(),   -1, SQLITE_TRANSIENT);
+        while (sqlite3_step(stmt) == SQLITE_ROW) days.push_back(colText(stmt, 0));
+        sqlite3_finalize(stmt);
+        return days;
     }
 
     // Removes a task and any saved plan rows that point at it. Both deletes

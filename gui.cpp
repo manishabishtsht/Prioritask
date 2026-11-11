@@ -5,6 +5,7 @@
 #include "advisor.h"
 #include "commitments.h"
 #include "database.h"
+#include "monthly.h"
 #include "scheduler.h"
 #include "timeutil.h"
 
@@ -48,7 +49,8 @@ enum Icon : unsigned {
     IconCalendar = 0xF073, IconPlus      = 0xF067, IconPencil  = 0xF040,
     IconCheck    = 0xF00C, IconTrash     = 0xF1F8, IconCoffee  = 0xF0F4,
     IconMarker   = 0xF041, IconBolt      = 0xF0E7, IconWarning = 0xF071,
-    IconBed      = 0xF236, IconRefresh   = 0xF021, IconSave    = 0xF0C7
+    IconBed      = 0xF236, IconRefresh   = 0xF021, IconSave    = 0xF0C7,
+    IconChart    = 0xF080, IconLeft      = 0xF053, IconRight   = 0xF054
 };
 
 // An icon as UTF-8 text. These code points all take three bytes.
@@ -243,6 +245,11 @@ struct AppState {
     int          wakeSaved = -1;   // minutes, or -1 if none
     std::string  wakeMessage;
 
+    // This month
+    int          monthYear = 0, monthNum = 0;   // the month on screen; 0 = not chosen yet
+    bool         haveMonth = false;
+    MonthReport  month;
+
     TaskForm form;
     bool     openTaskDialog = false;
 
@@ -278,6 +285,7 @@ void reloadAll(Database& db, AppState& s)
     s.commitments     = toBlocks(s.commitmentRows);
     s.haveSuggestions = false;
     s.havePlan        = false;     // the old plan no longer matches the data
+    s.haveMonth       = false;     // nor does the monthly report
 }
 
 int savedWakeTime(Database& db)
@@ -1156,6 +1164,158 @@ void drawScheduleTab(Database& db, AppState& s)
 }
 
 // ---------------------------------------------------------------
+// "This month" tab: a monthly report card
+// ---------------------------------------------------------------
+void computeMonth(Database& db, AppState& s)
+{
+    if (s.monthYear == 0)   // first time: show the current month
+        std::sscanf(tu::todayString().c_str(), "%d-%d", &s.monthYear, &s.monthNum);
+
+    DynArray<MonthTask> items;
+    for (const Task& t : s.tasks) {
+        MonthTask m;
+        m.id          = t.id;
+        m.title       = t.title;
+        m.priority    = t.priority;
+        m.deadline    = t.deadline;
+        m.completed   = (t.status == "Completed");
+        m.completedAt = t.completedAt;
+        items.push_back(m);
+    }
+
+    char from[48], to[48];
+    std::snprintf(from, sizeof(from), "%04d-%02d-01", s.monthYear, s.monthNum);
+    std::snprintf(to,   sizeof(to),   "%04d-%02d-%02d", s.monthYear, s.monthNum,
+                  daysInMonth(s.monthYear, s.monthNum));
+    DynArray<std::string> plans = db.getPlannedDays(from, to);
+
+    std::string now = tu::todayString() + " " + tu::formatHM(tu::nowMinutes());
+    s.month     = buildMonthReport(items, plans, s.monthYear, s.monthNum, now);
+    s.haveMonth = true;
+}
+
+void drawMonthTab(Database& db, AppState& s, ImFont* large)
+{
+    static const char* kMonths[12] = {"January", "February", "March", "April", "May", "June", "July",
+                                      "August", "September", "October", "November", "December"};
+    if (!s.haveMonth) computeMonth(db, s);
+    const MonthReport& r = s.month;
+
+    int curY = 0, curM = 0;
+    std::sscanf(tu::todayString().c_str(), "%d-%d", &curY, &curM);
+    bool atCurrent = (r.year == curY && r.month == curM);
+
+    // ---- Month picker: no going past the current month ----
+    if (ImGui::Button((iconOr(IconLeft, "<") + "##prevmonth").c_str())) {
+        if (--s.monthNum == 0) { s.monthNum = 12; --s.monthYear; }
+        computeMonth(db, s);
+    }
+    ImGui::SameLine();
+    if (large) ImGui::PushFont(large);
+    ImGui::Text("%s %d", kMonths[r.month - 1], r.year);
+    if (large) ImGui::PopFont();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(atCurrent);
+    if (ImGui::Button((iconOr(IconRight, ">") + "##nextmonth").c_str())) {
+        if (++s.monthNum == 13) { s.monthNum = 1; ++s.monthYear; }
+        computeMonth(db, s);
+    }
+    ImGui::EndDisabled();
+    if (atCurrent) {
+        ImGui::SameLine();
+        ImGui::TextColored(kMuted, "  so far this month");
+    }
+    ImGui::Spacing();
+
+    // ---- Summary cards ----
+    float w = cardWidth(4);
+    statCard("m_done", w, large, kAccent, std::to_string(r.completed),
+             withIcon(IconCheck, "tasks completed"));
+    ImGui::SameLine();
+    ImVec4 rateColor = r.onTimeRate < 0 ? kMuted : r.onTimeRate >= 80 ? kGood : r.onTimeRate >= 50 ? kSoon : kWarn;
+    statCard("m_rate", w, large, rateColor,
+             r.onTimeRate < 0 ? std::string("-") : std::to_string(r.onTimeRate) + "%",
+             withIcon(IconClock, "on-time rate"));
+    ImGui::SameLine();
+    statCard("m_undone", w, large, r.undone ? kWarn : kMuted, std::to_string(r.undone),
+             withIcon(IconWarning, "left undone"));
+    ImGui::SameLine();
+    statCard("m_planned", w, large, kAccent,
+             std::to_string(r.daysPlanned) + " / " + std::to_string(r.daysInMonth),
+             withIcon(IconCalendar, "days with a saved plan"));
+    ImGui::Spacing();
+
+    // ---- Bar chart: tasks completed on each day ----
+    ImGui::BeginChild("m_chart", ImVec2(0, 205), ImGuiChildFlags_Borders);
+    {
+        panelHeading(IconChart, "TASKS COMPLETED EACH DAY");
+        DynArray<float> perDay;
+        int most = 1;
+        for (int c : r.completedPerDay) {
+            perDay.push_back(static_cast<float>(c));
+            most = maxOf(most, c);
+        }
+        char overlay[64];
+        if (r.completed == 0)
+            std::snprintf(overlay, sizeof(overlay), "no tasks completed yet");
+        else
+            std::snprintf(overlay, sizeof(overlay), "%d on time, %d late", r.onTime, r.late);
+        ImGui::PlotHistogram("##perday", perDay.begin(), static_cast<int>(perDay.size()), 0, overlay,
+                             0.0f, static_cast<float>(most), ImVec2(-FLT_MIN, 100));
+        ImGui::TextColored(kMuted, "day 1");
+        ImGui::SameLine(ImGui::GetWindowWidth() - 90);
+        ImGui::TextColored(kMuted, "day %d", r.daysInMonth);
+        ImGui::TextColored(kMuted, "On-time rate = on time / (on time + late + left undone)");
+    }
+    ImGui::EndChild();
+    ImGui::Spacing();
+
+    // ---- Two lists: left undone, and finished late ----
+    float half   = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
+    float height = -ImGui::GetFrameHeightWithSpacing();
+    char heading[64];
+
+    ImGui::BeginChild("m_undone_list", ImVec2(half, height), ImGuiChildFlags_Borders);
+    {
+        std::snprintf(heading, sizeof(heading), "LEFT UNDONE (%d)", r.undone);
+        panelHeading(IconWarning, heading);
+        if (r.undoneTasks.empty())
+            ImGui::TextColored(kGood, "%s", atCurrent ? "Nothing missed so far this month." : "Nothing missed this month.");
+        for (const MonthItem& it : r.undoneTasks) {
+            pill(("P" + std::to_string(it.priority)).c_str(), priorityColor(it.priority));
+            ImGui::SameLine(0, 18);
+            ImGui::Text("%s", it.title.c_str());
+            ImGui::SameLine();
+            if (it.stillPending)
+                ImGui::TextColored(kWarn, "overdue %s", formatDuration(it.minutesLate).c_str());
+            else
+                ImGui::TextColored(kMuted, "done %s late, after this month", formatDuration(it.minutesLate).c_str());
+            tip(("Deadline: " + it.deadline).c_str());
+        }
+    }
+    ImGui::EndChild();
+
+    ImGui::SameLine();
+
+    ImGui::BeginChild("m_late_list", ImVec2(0, height), ImGuiChildFlags_Borders);
+    {
+        std::snprintf(heading, sizeof(heading), "FINISHED LATE (%d)", r.late);
+        panelHeading(IconClock, heading);
+        if (r.lateTasks.empty())
+            ImGui::TextColored(kMuted, "No late finishes.");
+        for (const MonthItem& it : r.lateTasks) {
+            pill(("P" + std::to_string(it.priority)).c_str(), priorityColor(it.priority));
+            ImGui::SameLine(0, 18);
+            ImGui::Text("%s", it.title.c_str());
+            ImGui::SameLine();
+            ImGui::TextColored(kSoon, "%s late", formatDuration(it.minutesLate).c_str());
+            tip(("Deadline: " + it.deadline).c_str());
+        }
+    }
+    ImGui::EndChild();
+}
+
+// ---------------------------------------------------------------
 // Fonts
 // ---------------------------------------------------------------
 
@@ -1320,6 +1480,9 @@ int main()
             }
             if (ImGui::BeginTabItem((withIcon(IconCalendar, "My schedule") + "###schedule").c_str())) {
                 drawScheduleTab(db, s);    ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem((withIcon(IconChart, "This month") + "###month").c_str())) {
+                drawMonthTab(db, s, large); ImGui::EndTabItem();
             }
             ImGui::EndTabBar();
         }
