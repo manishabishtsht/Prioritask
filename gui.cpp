@@ -340,7 +340,9 @@ struct AppState {
     int          monthYear = 0, monthNum = 0;   // the month on screen; 0 = not chosen yet
     bool         haveMonth = false;
     MonthReport  month;
-
+        DynArray<std::string>   monthPlanDays;   // days this month with a saved plan
+    std::string             pastPlanDay;     // the day picked in "Past plans"
+    DynArray<SavedPlanItem> pastPlan;        // what was saved for that day
     // Focus timer (What now)
     bool         focusActive = false, focusPaused = false;
     int          focusTaskId = 0;
@@ -2944,7 +2946,9 @@ void computeMonth(Database& db, AppState& s)
     std::snprintf(to,   sizeof(to),   "%04d-%02d-%02d", s.monthYear, s.monthNum,
                   daysInMonth(s.monthYear, s.monthNum));
     DynArray<std::string> plans = db.getPlannedDays(from, to);
-
+        s.monthPlanDays = plans;      // reused by the "Past plans" card
+    s.pastPlanDay.clear();        // a new month: nothing picked yet
+    s.pastPlan.clear();
     std::string now = tu::todayString() + " " + tu::formatHM(tu::nowMinutes());
     s.month     = buildMonthReport(items, plans, s.monthYear, s.monthNum, now);
     s.haveMonth = true;
@@ -3203,7 +3207,49 @@ void drawMonthTab(Database& db, AppState& s, ImFont* large)
     }
     ImGui::EndChild();
     ImGui::Spacing();
+        // ---- Past plans: pick a day with a saved plan and see what it held ----
+    float lineH = ImGui::GetTextLineHeightWithSpacing();
+    int   rows  = s.pastPlanDay.empty() ? 0 : 1 + static_cast<int>(s.pastPlan.size());
+    float pastH = 2.0f * st.WindowPadding.y + 2.0f * ImGui::GetFrameHeightWithSpacing() + rows * lineH + 8.0f;
+    beginCard("m_past", ImVec2(0, pastH), CardPlain, ImGuiWindowFlags_NoScrollbar);
+    {
+        cardHeading(IconCalendar, "Past plans", "pick a day you saved a plan");
+        if (s.monthPlanDays.empty())
+            ImGui::TextColored(kMuted, "No plans saved this month. Press Save Plan on Plan My Day.");
 
+        // One chip per saved day, showing just the day number.
+        for (std::size_t i = 0; i < s.monthPlanDays.size(); ++i) {
+            const std::string& day = s.monthPlanDays[i];
+            std::string label = day.substr(8, 2);              // "2026-11-16" -> "16"
+            if (i > 0) ImGui::SameLine(0, 6);
+            ImGui::PushID(static_cast<int>(i));
+            if (quickChip(label.c_str(), day == s.pastPlanDay)) {
+                s.pastPlanDay = day;
+                s.pastPlan    = db.getPlanForDay(day);     // your function from Step 1
+            }
+            ImGui::PopID();
+        }
+
+        // The picked day: total, then each task.
+        if (!s.pastPlanDay.empty()) {
+            ImGui::Spacing();
+            int kept = 0, asked = 0;
+            for (const SavedPlanItem& it : s.pastPlan) { kept += it.allocated; asked += it.requested; }
+            ImGui::TextColored(kMuted, "%s: %d of %d min planned", s.pastPlanDay.c_str(), kept, asked);
+            for (const SavedPlanItem& it : s.pastPlan) {
+                ImGui::BulletText("%s", it.title.c_str());
+                ImGui::SameLine();
+                if (it.allocated == 0)
+                    ImGui::TextColored(kWarn, "dropped");
+                else if (it.allocated < it.requested)
+                    ImGui::TextColored(kSoon, "%d of %d min", it.allocated, it.requested);
+                else
+                    ImGui::TextColored(kGood, "%d min", it.allocated);
+            }
+        }
+    }
+    ImGui::EndChild();
+    ImGui::Spacing();
     // ---- Two lists: left undone, and finished late ----
     float half  = (ImGui::GetContentRegionAvail().x - st.ItemSpacing.x) * 0.5f;
     int   rows  = maxOf(1, maxOf(static_cast<int>(r.undoneTasks.size()), static_cast<int>(r.lateTasks.size())));
