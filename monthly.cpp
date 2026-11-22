@@ -135,3 +135,183 @@ MonthReport buildMonthReport(const DynArray<MonthTask>& tasks,
 
     return r;
 }
+
+
+TodayStats todayStats(const DynArray<MonthTask>& tasks, const std::string& now)
+{
+    TodayStats st;
+    long nowMin = 0;
+    if (!toMinutes(now, nowMin)) return st;
+    long today      = nowMin / 1440;              // day number since 1970
+    long endOfToday = (today + 1) * 1440;         // first minute of tomorrow
+
+    DynArray<long> doneDays;
+    for (const MonthTask& t : tasks) {
+        long at = 0;
+        if (t.completed) {
+            if (!t.completedAt.empty() && toMinutes(t.completedAt, at)) {
+                doneDays.push_back(at / 1440);
+                if (at / 1440 == today) ++st.doneToday;
+            }
+        } else if (!t.deadline.empty() && toMinutes(t.deadline, at) && at < endOfToday) {
+            ++st.openToday;                        // due by tonight, or overdue
+        }
+    }
+
+    // Streak: walk back day by day from today through the distinct days
+    // that have a completion, newest first, until a day is missing.
+    mergeSort(doneDays, [](long a, long b) { return a > b; });
+    DynArray<long> days;
+    for (long d : doneDays)
+        if (days.empty() || days.back() != d) days.push_back(d);
+
+    std::size_t i = 0;
+    while (i < days.size() && days[i] > today) ++i;                   // ignore future dates
+    long expect = (i < days.size() && days[i] == today) ? today : today - 1;
+    while (i < days.size() && days[i] == expect) { ++st.streak; --expect; ++i; }
+    return st;
+}
+
+
+namespace {
+
+// The calendar date of a day number (the reverse of daysFromCivil).
+void civilFromDays(long z, int& y, int& m, int& d)
+{
+    z += 719468;
+    long era = (z >= 0 ? z : z - 146096) / 146097;
+    long doe = z - era * 146097;                                   // day of the era
+    long yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    long doy = doe - (365 * yoe + yoe / 4 - yoe / 100);             // day of the year, March first
+    long mp  = (5 * doy + 2) / 153;
+    d = static_cast<int>(doy - (153 * mp + 2) / 5 + 1);
+    m = static_cast<int>(mp < 10 ? mp + 3 : mp - 9);
+    y = static_cast<int>(yoe + era * 400 + (m <= 2 ? 1 : 0));
+}
+
+const char* kWeekdays[7] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
+
+std::string hoursText(int minutes)
+{
+    int h = minutes / 60, m = minutes % 60;
+    if (h == 0) return std::to_string(m) + "m";
+    return m ? std::to_string(h) + "h " + std::to_string(m) + "m" : std::to_string(h) + "h";
+}
+
+} // namespace
+
+
+DynArray<DayCount> lastDaysCompleted(const DynArray<MonthTask>& tasks, const std::string& now, int days)
+{
+    DynArray<DayCount> out;
+    long nowMin = 0;
+    if (days <= 0 || !toMinutes(now, nowMin)) return out;
+    long today = nowMin / 1440;
+
+    for (int i = days - 1; i >= 0; --i) {
+        DayCount dc;
+        dc.day     = today - i;
+        dc.weekday = static_cast<int>((dc.day % 7 + 7 + 3) % 7);   // 1970-01-01 was a Thursday
+        int y = 0, m = 0;
+        civilFromDays(dc.day, y, m, dc.dayOfMonth);
+        out.push_back(dc);
+    }
+    long first = today - (days - 1);
+    for (const MonthTask& t : tasks) {
+        long at = 0;
+        if (t.completed && !t.completedAt.empty() && toMinutes(t.completedAt, at)) {
+            long day = at / 1440;
+            if (day >= first && day <= today) ++out[static_cast<std::size_t>(day - first)].count;
+        }
+    }
+    return out;
+}
+
+
+DynArray<Insight> buildInsights(const DynArray<MonthTask>& tasks, const std::string& now, int freeMinutes)
+{
+    DynArray<Insight> out;
+    long nowMin = 0;
+    if (!toMinutes(now, nowMin)) return out;
+    long endOfToday = (nowMin / 1440 + 1) * 1440;
+
+    int  overdue = 0, pending = 0, withDeadline = 0, dueTodayMin = 0;
+    long oldest = 0;
+    std::string oldestTitle;
+    int  byPart[4] = {0, 0, 0, 0};        // morning, afternoon, evening, night
+    int  byWeekday[7] = {0, 0, 0, 0, 0, 0, 0};
+    int  doneWithTime = 0;
+
+    for (const MonthTask& t : tasks) {
+        long at = 0;
+        if (t.completed) {
+            if (!t.completedAt.empty() && toMinutes(t.completedAt, at)) {
+                ++doneWithTime;
+                int hour = static_cast<int>((at % 1440) / 60);
+                int part = (hour >= 5 && hour < 12) ? 0 : (hour >= 12 && hour < 17) ? 1 : (hour >= 17 && hour < 22) ? 2 : 3;
+                ++byPart[part];
+                ++byWeekday[(at / 1440 % 7 + 7 + 3) % 7];
+            }
+            continue;
+        }
+        ++pending;
+        if (!t.deadline.empty() && toMinutes(t.deadline, at)) {
+            ++withDeadline;
+            if (at < nowMin) {
+                if (overdue == 0 || at < oldest) { oldest = at; oldestTitle = t.title; }
+                ++overdue;
+            }
+            if (at < endOfToday) dueTodayMin += t.minTime;   // due tonight, or already overdue
+        }
+    }
+
+    // 1. Overdue work comes first.
+    if (overdue > 0)
+        out.push_back({2, std::to_string(overdue) + (overdue == 1 ? " task is" : " tasks are") +
+                          " overdue. Start with the oldest: " + oldestTitle + "."});
+
+    // 2. Does today's deadline work fit in the time left?
+    if (dueTodayMin > 0) {
+        if (dueTodayMin > freeMinutes)
+            out.push_back({2, "Today's deadlines need at least " + hoursText(dueTodayMin) + ", but only " +
+                              hoursText(freeMinutes < 0 ? 0 : freeMinutes) + " is free. Something has to move."});
+        else
+            out.push_back({1, "Today's deadlines fit: they need at least " + hoursText(dueTodayMin) +
+                              " of your " + hoursText(freeMinutes) + " free."});
+    }
+
+    // 3. The streak.
+    TodayStats st = todayStats(tasks, now);
+    if (st.doneToday >= 3)
+        out.push_back({1, std::to_string(st.doneToday) + " tasks done today. A strong day."});
+    else if (st.streak > 0 && st.doneToday == 0)
+        out.push_back({0, "Finish one task today to keep your " + std::to_string(st.streak) + "-day streak."});
+
+    // 4. Deadlines make suggestions better.
+    if (pending >= 3 && withDeadline == 0)
+        out.push_back({0, "None of your pending tasks has a deadline. Add some, and suggestions get sharper."});
+
+    // 5. When do you finish things? Needs enough history to mean anything.
+    if (doneWithTime >= 5) {
+        static const char* parts[4] = {"morning", "afternoon", "evening", "night"};
+        int best = 0;
+        for (int i = 1; i < 4; ++i) if (byPart[i] > byPart[best]) best = i;
+        if (byPart[best] * 100 >= doneWithTime * 40)
+            out.push_back({0, std::string("You finish most tasks in the ") + parts[best] + " (" +
+                              std::to_string(byPart[best]) + " of " + std::to_string(doneWithTime) +
+                              "). Plan demanding work then."});
+    }
+
+    // 6. Your strongest day of the week.
+    if (doneWithTime >= 7) {
+        int best = 0;
+        for (int i = 1; i < 7; ++i) if (byWeekday[i] > byWeekday[best]) best = i;
+        out.push_back({0, std::string(kWeekdays[best]) + " is when you complete the most tasks (" +
+                          std::to_string(byWeekday[best]) + ")."});
+    }
+
+    if (out.empty())
+        out.push_back({1, "All clear: nothing overdue and nothing due today."});
+    while (out.size() > 3) out.pop_back();
+    return out;
+}
