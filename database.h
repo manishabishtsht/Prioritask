@@ -356,8 +356,38 @@ public:
         }
         return ok;
     }
+           // Undo "Done": the task goes back to Pending and loses its completion time.
+    bool markPending(int taskId) {
+        // Set the task back to Pending and clear when it was completed.
+        // The ? is a placeholder; the real id is filled in safely below.
+        const char* sql =
+            "UPDATE tasks SET status = 'Pending', completed_at = NULL WHERE task_id = ?;";
 
-    // ---------------------------------------------------------------
+        // 1. Prepare: SQLite checks the SQL and turns it into a statement.
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
+            return false;
+        }
+
+        // 2. Bind: put taskId into the first ?. This prevents SQL injection.
+        sqlite3_bind_int(stmt, 1, taskId);
+
+        // 3. Step: run it. SQLITE_DONE means it ran without errors.
+        bool ok = (sqlite3_step(stmt) == SQLITE_DONE);
+        if (!ok) std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
+
+        // 4. Finalize: free the statement's memory.
+        sqlite3_finalize(stmt);
+
+        // sqlite3_step succeeds even if no task has this id, so check
+        // that a row was actually changed.
+        if (ok && sqlite3_changes(db) == 0) {
+            std::cout << "No task with id " << taskId << "\n";
+            return false;
+        }
+        return ok;
+    }
     // Fixed commitments
     // ---------------------------------------------------------------
     bool createCommitmentsTable() {

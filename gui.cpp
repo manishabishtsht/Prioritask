@@ -1949,7 +1949,7 @@ void drawTaskCards(Database& db, AppState& s, bool& changed)
     int   columns   = maxOf(1, static_cast<int>((avail + gap) / (minWidth + gap)));
     float cardWidth = (avail - gap * (columns - 1)) / columns;
 
-    for (std::size_t i = 0; i < order.size(); ++i) {
+        for (std::size_t i = 0; i < order.size(); ++i) {
         const Task& t = *order[i];
         bool done = (t.status == "Completed");
         if (i % columns != 0) ImGui::SameLine(0, gap);
@@ -2006,14 +2006,13 @@ void drawTaskCards(Database& db, AppState& s, bool& changed)
             }
             ImGui::SameLine(0, 6);
         }
+
+        // Right side: reopen for completed tasks, mark done for pending ones.
         if (done) {
-            ImVec2 bp = ImGui::GetCursorScreenPos();
-            ImGui::Dummy(ImVec2(btn, btn));
-            dl->AddCircleFilled(ImVec2(bp.x + btn * 0.5f, bp.y + btn * 0.5f), btn * 0.5f, rgba(kGood, 0.85f), 24);
-            std::string g = iconOr(IconCheck, "v");
-            ImVec2 gs = ImGui::CalcTextSize(g.c_str());
-            dl->AddText(ImVec2(bp.x + (btn - gs.x) * 0.5f, bp.y + (btn - gs.y) * 0.5f), ImGui::GetColorU32(kBtnText), g.c_str());
-            tip(("Done " + t.completedAt).c_str());
+            if (iconButton("##reopen", IconRefresh, "R", kAccent, btn, "Reopen (mark as not done)")) {
+                if (db.markPending(t.id)) s.status = "Reopened: " + t.title;
+                changed = true;
+            }
         } else if (iconButton("##done", IconCheck, "v", kGood, btn, "Mark done")) {
             if (db.markComplete(t.id)) s.status = "Completed: " + t.title;
             changed = true;
