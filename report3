@@ -1,0 +1,711 @@
+\documentclass[12pt,a4paper]{article}
+
+% ============================================================
+% PACKAGES
+% ============================================================
+\usepackage[
+    a4paper,
+    top=1.55cm,
+    bottom=1.35cm,
+    left=1.75cm,
+    right=1.75cm
+]{geometry}
+
+\usepackage[T1]{fontenc}
+\usepackage{newtxtext}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usepackage{eso-pic}
+\usepackage{ragged2e}
+
+% ============================================================
+% COLORS
+% ============================================================
+\definecolor{GEUBlue}{RGB}{43,91,145}
+\definecolor{GEUBannerBlue}{RGB}{0,102,148}
+\definecolor{GEUYellow}{RGB}{255,201,38}
+\definecolor{InstructionGrey}{RGB}{125,125,125}
+
+% ============================================================
+% GENERAL SETTINGS
+% ============================================================
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\renewcommand{\arraystretch}{1}
+
+% ============================================================
+% HEADER / FOOTER
+% ============================================================
+\pagestyle{fancy}
+\fancyhf{}
+
+\fancyhead[L]{%
+    \fontsize{10.5}{12}\selectfont
+    
+}
+
+\fancyhead[R]{%
+    \fontsize{10.5}{12}\selectfont
+    PHASE-III PROJECT PROGRESS
+}
+
+\fancyfoot[R]{%
+    \fontsize{10}{12}\selectfont
+    Page \thepage
+}
+
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\setlength{\headheight}{20pt}
+\setlength{\headsep}{0.65cm}
+\setlength{\footskip}{0.65cm}
+
+% ============================================================
+% BOTTOM YELLOW LINE
+% ============================================================
+\AddToShipoutPictureBG{%
+\begin{tikzpicture}[remember picture,overlay]
+    \fill[GEUYellow]
+    (current page.south west)
+    rectangle
+    ([yshift=0.14cm]current page.south east);
+\end{tikzpicture}
+}
+
+% ============================================================
+% CUSTOM COMMANDS
+% ============================================================
+\newcommand{\sectiontitle}[1]{%
+    {\color{GEUBlue}
+    \fontsize{18}{22}\selectfont #1}
+}
+
+\newcommand{\instruction}[1]{%
+    {\color{InstructionGrey}
+    \fontsize{10.5}{13}\selectfont #1}
+}
+
+\newcommand{\answerbox}[2]{%
+    \begin{tabularx}{\textwidth}{
+        |>{\raggedright\arraybackslash}X|}
+        \hline
+        \parbox[t][#1][t]{\dimexpr\linewidth-12pt\relax}{
+            \vspace{5pt}
+            \fontsize{11}{13}\selectfont #2
+        }\\
+        \hline
+    \end{tabularx}
+}
+
+% ============================================================
+% DOCUMENT
+% ============================================================
+\begin{document}
+
+% ============================================================
+% PAGE 1
+% ============================================================
+
+\vspace*{0.10cm}
+
+\includegraphics[width=8.0cm]{graphicera_logo.png}
+
+\vspace{0.70cm}
+
+\noindent
+\colorbox{GEUBannerBlue}{%
+\parbox{\dimexpr\textwidth-2\fboxsep\relax}{
+    \vspace{0.17cm}
+    {\color{GEUYellow}
+    \fontsize{16.5}{20}\selectfont
+    \bfseries
+    PROJECT AND TEAM INFORMATION}
+    \vspace{0.17cm}
+}}
+
+\vspace{0.80cm}
+
+% PROJECT TITLE
+\sectiontitle{Project Title}
+
+\vspace{0.05cm}
+
+\instruction{(Try to choose a catchy title. Max 20 words).}
+
+\vspace{0.40cm}
+
+\answerbox{1.00cm}{PrioriTask: Energy-Based Intelligent Task Scheduling System}
+
+\vspace{0.80cm}
+
+% TEAM INFORMATION
+% \sectiontitle{Student/Team Information}
+
+% \vspace{0.40cm}
+
+% \begin{tabularx}{\textwidth}{
+% |>{\raggedright\arraybackslash}p{0.66\textwidth}
+% |>{\raggedright\arraybackslash}X|
+% }
+% \hline
+
+% \parbox[t][1.15cm][t]{\linewidth}{
+% \vspace{4pt}
+% \fontsize{10.5}{13}\selectfont
+% Team Name:\\[2pt]
+% Team \# (Mentor needs to assign)
+% }
+% &
+% \\
+% \hline
+
+% \parbox[t][3.65cm][t]{\linewidth}{
+% \vspace{5pt}
+% \fontsize{10.5}{13}\selectfont
+% Team member 1 (Team Lead)\\[3pt]
+% {\color{InstructionGrey}
+% (Last Name, name: student ID: email, picture):}
+% }
+% &
+% \\
+% \hline
+
+% \parbox[t][3.65cm][t]{\linewidth}{
+% \vspace{5pt}
+% \fontsize{10.5}{13}\selectfont
+% Team member 2\\[3pt]
+% {\color{InstructionGrey}
+% (Last Name, name: student ID: email, picture):}
+% }
+% &
+% \\
+% \hline
+
+% \end{tabularx}
+
+% \newpage
+
+% ============================================================
+% PAGE 2
+% ============================================================
+\noindent
+\begin{tabularx}{\textwidth}{|>{\RaggedRight\arraybackslash}p{0.69\textwidth}|>{\RaggedRight\arraybackslash}X|}
+\hline
+\begin{minipage}[t]{\linewidth}
+\vspace{1.5mm}
+\textit{Team Name:}\\[-1mm]
+\textit{Team ID:}
+\vspace{1.5mm}
+\end{minipage}
+&
+\begin{minipage}[t]{\linewidth}
+\vspace{1.5mm}
+\textit{TechBot Team}\\[-1mm]
+\textit{T-315}
+\vspace{1.5mm}
+\end{minipage}
+\\
+\hline
+\begin{minipage}[t][3.25cm][t]{\linewidth}
+\vspace{1.5mm}
+\textbf{Team member 1 (Team Lead)}\\[-1mm]
+\vspace{2.0cm}
+\end{minipage}
+&
+\begin{minipage}[t][3.25cm][t]{\linewidth}
+\vspace{1.5mm}
+\textit{Bisht, Manisha -- 2510012646}\\
+{\fontsize{8.5}{10.5}\selectfont\textit{manishabishtsht8@gmail.com}}
+
+\vspace{2mm}
+\includegraphics[width=3.0cm,height=1.5cm,keepaspectratio]{WhatsApp Image 2026-09-08 at 5.56.39 PM.jpeg}
+\end{minipage}
+\\
+\hline
+\begin{minipage}[t][3.25cm][t]{\linewidth}
+\vspace{1.5mm}
+\textbf{Team member 2}\\[-1mm]
+\vspace{2.0cm}
+\end{minipage}
+&
+\begin{minipage}[t][3.25cm][t]{\linewidth}
+\vspace{1.5mm}
+\textit{Choudhary, Purnima -- 2510012541}\\
+{\fontsize{8.5}{10.5}\selectfont\textit{purnimachoudhary1307@gmail.com}}
+
+\vspace{2mm}
+\includegraphics[width=3.0cm,height=1.5cm,keepaspectratio]{WhatsApp Image 2026-09-08 at 5.57.34 PM (1).jpeg}
+\end{minipage}
+\\
+\hline
+\begin{minipage}[t][3.25cm][t]{\linewidth}
+\vspace{1.5mm}
+\textbf{Team member 3}\\[-1mm]
+\vspace{2.0cm}
+\end{minipage}
+&
+\begin{minipage}[t][3.25cm][t]{\linewidth}
+\vspace{1.5mm}
+\textit{Bharadwaj, Yug -- 2512500006}\\
+{\fontsize{8.5}{10.5}\selectfont\textit{yugbh2006@gmail.com}}
+
+\vspace{2mm}
+\includegraphics[width=3.0cm,height=1.5cm,keepaspectratio]{WhatsApp Image 2026-09-08 at 5.57.34 PM.jpeg}
+\end{minipage}
+\\
+\hline
+\end{tabularx}
+
+\newpage
+\vspace*{0.15cm}
+
+\noindent
+\colorbox{GEUBannerBlue}{%
+\parbox{\dimexpr\textwidth-2\fboxsep\relax}{
+    \vspace{0.18cm}
+    {\color{GEUYellow}
+    \fontsize{17}{21}\selectfont
+    \bfseries
+    PHASE-III PROJECT PROGRESS DESCRIPTION (35 pts)}
+    \vspace{0.18cm}
+}}
+
+\vspace{0.70cm}
+
+% ABSTRACT
+\sectiontitle{Project Abstract (2 pts)}
+
+\vspace{0.05cm}
+
+\instruction{
+
+}
+
+\vspace{0.12cm}
+
+\answerbox{8.00cm}{PrioriTask is a C++ desktop and command-line application that uses SQLite to help students manage their daily schedules, especially when they have more tasks to complete than the available hours. What makes PrioriTask different from regular to-do list applications is its **task compression feature**. Instead of simply skipping tasks when there isn't enough time, PrioriTask adjusts the duration of each task according to its priority and flexibility.
+
+Each task has two durations: the ideal time needed to complete it comfortably and the minimum time required to get it done. For example, a 60-minute gym workout can be reduced to 30 minutes on a busy day, while an important assignment is given more time based on its priority. This helps students make the best use of their available time without completely missing out on important tasks.
+
+\vspace{4pt}
+In Phase-III the project grew from a scheduling engine into a complete application. When even the minimums
+do not fit, a task-dropping module moves the least valuable optional tasks to another day and never drops a
+mandatory task. A rule-based advisor answers ``What should I do now?'' using deadlines, priority and the
+user's current energy level. Fixed commitments such as college or office hours are subtracted from the
+available time, and during these hours the application stays quiet unless the user declares a free slot. The
+application has two interfaces, an 11-option command-line menu and a four-tab desktop window, which share
+one engine and one database. All data structures and algorithms, including the dynamic array, binary heap
+and merge sort, are written by the team instead of being taken from the C++ STL.}
+
+\vspace{0.70cm}
+
+% UPDATED APPROACH
+\sectiontitle{Updated Project Approach and Architecture (2 pts)}
+
+\vspace{0.05cm}
+
+\instruction{
+}
+
+\vspace{0.25cm}
+
+\answerbox{9.85cm}{The system is divided into three layers with a strict separation between them.
+
+\vspace{3pt}
+\textbf{1. Persistence layer (database.h)} --- a Database class wrapping the SQLite C API. It manages four
+tables: tasks (task details, ideal and minimum time, mandatory and needs-going-out flags), day\_plan (minutes
+allocated to each task on a date), settings (wake-up time) and commitments (weekly college or work hours).
+Plans are saved inside a transaction, and older databases are upgraded automatically with ALTER TABLE without
+losing data.
+
+\vspace{3pt}
+\textbf{2. Logic layer} --- scheduler.cpp (compression and task-dropping), advisor.cpp (rule-based
+suggestions and free-slot rules) and commitments.cpp (merging of busy time). This layer has no SQLite
+dependency. It accepts plain structs and returns results, so every algorithm is tested without a database.
+
+\vspace{3pt}
+\textbf{3. Interface layer} --- main.cpp (menu-driven CLI) and gui.cpp (desktop GUI with What now, Plan my
+day, Tasks and My schedule tabs). Both call the same logic functions, so they always give the same answer.
+
+\vspace{3pt}
+\textbf{Own DSA library (dsa.h):} DynArray (growable array), BinaryHeap (priority queue stored in an array)
+and mergeSort replace std::vector, std::priority\_queue and std::sort. The heap selects which task to drop
+and ranks suggestions; merge sort orders busy intervals before they are merged.
+
+\vspace{3pt}
+\textbf{Communication:} the application runs fully offline and uses no network protocol or external API. The
+two interfaces communicate only through the shared SQLite file and the shared engine.
+
+\vspace{3pt}
+\textbf{Libraries and tool chain:} C++17; SQLite (amalgamation compiled into the program); Dear ImGui 1.91.6
+with GLFW and OpenGL 3 for the GUI, kept in third\_party/; g++ 15.2 on Ubuntu under WSL with -Wall; VS Code;
+DB Browser for SQLite; and Git/GitHub for version control.}
+
+\newpage
+
+% ============================================================
+% PAGE 3
+% ============================================================
+
+\vspace*{0.20cm}
+
+% TASKS COMPLETED
+\sectiontitle{Tasks Completed (7 pts)}
+
+\vspace{0.05cm}
+
+\instruction{
+}
+
+\vspace{0.20cm}
+
+\begin{tabularx}{\textwidth}{
+|>{\raggedright\arraybackslash}X
+|>{\raggedright\arraybackslash}X|
+}
+\hline
+
+\textbf{Task Completed} &
+\textbf{Team Member}
+\\
+\hline
+
+Task-dropping with a priority queue and a restore pass, for days that compression cannot fix
+&
+Yug
+\\
+\hline
+
+Menu-driven CLI with 11 options, input validation and deadline checking
+&
+Manisha
+\\
+\hline
+
+Saving each plan to day\_plan in one transaction; verified input validation, plan saving, advisor and delete
+&
+Purnima
+\\
+\hline
+
+Rule-based advisor using deadline, priority and the user's energy level
+&
+Manisha
+\\
+\hline
+
+Fixed commitments (college, school and work hours) with merging of overlapping busy time
+&
+Purnima
+\\
+\hline
+
+Desktop GUI with four tabs using Dear ImGui
+&
+Manisha
+\\
+\hline
+
+Free-slot quiet mode and needs-going-out flag, with automatic database migration
+&
+Purnima
+\\
+\hline
+
+Own DSA library (DynArray, BinaryHeap, mergeSort) replacing all STL containers and algorithms
+&
+Yug
+\\
+\hline
+
+Git repository and shared GitHub history for the team
+&
+Yug
+\\
+\hline
+
+Testing of the new modules, and comparison of the STL-free version against the original
+&
+Yug
+\\
+\hline
+
+\end{tabularx}
+
+\vspace{0.65cm}
+
+% CHALLENGES
+\sectiontitle{Challenges/Roadblocks (7 pts)}
+
+\vspace{0.05cm}
+
+\instruction{
+
+}
+
+\vspace{0.18cm}
+
+\answerbox{8.40cm}{\textbf{1. Antivirus software blocked every Windows build.} McAfee deleted the compiled
+program each time MinGW produced it, so nothing could be run. Resolved by moving the build to Ubuntu under
+WSL, where the same code compiles with g++ without interference.
+
+\vspace{3pt}
+\textbf{2. The GUI library did not compile with the newer compiler.} Dear ImGui 1.91.6 failed to build with
+GCC 15 because of a missing header. Resolved by adding the compiler flag -include cstring.
+
+\vspace{3pt}
+\textbf{3. A new database column had to be added without losing user data.} The needs\_outside field did not
+exist in databases created earlier. Resolved by checking the table's columns at startup and adding the column
+with ALTER TABLE. An old database was tested to confirm that no row was lost.
+
+\vspace{3pt}
+\textbf{4. Two separate Git histories had to be combined.} The shared repository and the local project were
+created separately, so a normal push was refused. Resolved by merging both histories and checking that only
+the report and README were added to the code.
+
+\vspace{3pt}
+\textbf{5. Replacing the STL without changing any result.} Writing our own dynamic array, heap and sort could
+introduce small errors. Resolved by running the old and new versions on 60,000 random inputs and confirming
+that the output was identical.
+
+\vspace{3pt}
+\textbf{6. Daily routines and start times are still not modelled.} Sleep is identified by its name, and the
+plan does not give each task a start time. Planned resolution: a separate routines table and a fixed\_start
+column.}
+
+\vspace{0.65cm}
+
+% TASKS PENDING
+% \sectiontitle{Tasks Pending (7 pts)}
+
+% \vspace{0.05cm}
+
+% \instruction{
+% (Describe the main tasks that you still need to complete.
+% Max 250 words).
+% }
+
+% \vspace{0.18cm}
+
+% \begin{tabularx}{\textwidth}{
+% |>{\raggedright\arraybackslash}X
+% |>{\raggedright\arraybackslash}X|
+% }
+% \hline
+
+% \textbf{Task Pending} &
+% \textbf{Team Member (to complete the task)}
+% \\
+% \hline
+
+% \parbox[t][1.25cm][t]{\linewidth}{}
+% &
+% \parbox[t][1.25cm][t]{\linewidth}{}
+% \\
+% \hline
+
+% \end{tabularx}
+
+\newpage
+
+% ============================================================
+% PAGE 4
+% ============================================================
+
+\vspace*{0.30cm}
+
+% OUTCOMES
+\sectiontitle{Project Outcome/Deliverables (2 pts)}
+
+\vspace{0.05cm}
+
+\instruction{}
+
+\vspace{0.35cm}
+
+\answerbox{5.95cm}{1. A working CLI and desktop application that stores tasks, plans the rest of the day
+around fixed commitments, and saves each plan.
+
+\vspace{2pt}
+2. A compression system with two policies that shortens tasks toward their minimums, and a task-dropping
+module for days that compression cannot fix.
+
+\vspace{2pt}
+3. A rule-based advisor that suggests what to do now from deadlines, priority and energy, and stays quiet
+during college unless a free slot is declared.
+
+\vspace{2pt}
+4. A database design that keeps task definitions separate from daily allocations and upgrades older
+databases without losing data.
+
+\vspace{2pt}
+5. The team's own DSA library (dynamic array, binary heap and merge sort) used in place of the STL.
+
+\vspace{2pt}
+6. Test results showing that weighted compression protects high-priority work, and that the STL-free version
+gives exactly the same results as the original.}
+
+\vspace{0.75cm}
+
+% PROGRESS
+\sectiontitle{Progress Overview (2 pts)}
+
+\vspace{0.05cm}
+
+\instruction{
+}
+
+\vspace{0.25cm}
+
+\answerbox{5.45cm}{\textbf{Ahead of schedule.} The desktop GUI, task-dropping, the priority queue,
+energy-based matching and the rule-based advisor were planned as later work, but they are complete and
+tested. Three features beyond the original plan were also added: fixed commitments, the free-slot quiet mode,
+and the team's own DSA library replacing the STL.
+
+\vspace{3pt}
+\textbf{On schedule.} Saving plans to day\_plan, the menu-driven CLI and version control are complete.
+
+\vspace{3pt}
+\textbf{Behind schedule.} Separating daily routines from one-off tasks and giving each planned task a start
+time are still pending, and the CMake build has not started. The GUI also runs only through WSL, not as a
+standalone Windows program.
+
+\vspace{3pt}
+All task planned and implemented succesfully.}
+
+\newpage
+
+% ============================================================
+% PAGE 5
+% ============================================================
+
+\vspace*{0.20cm}
+
+% CODEBASE
+\sectiontitle{Codebase Information (2 pts)}
+
+\vspace{0.05cm}
+
+\instruction{
+
+}
+
+\vspace{0.20cm}
+
+\answerbox{8.60cm}{\textbf{Repository link:} https://github.com/manishabishtsht/Prioritask\\
+\textbf{Branch:} main
+
+\vspace{4pt}
+\textbf{Important commits:}\\
+-- Working CLI with compression and advisor\\
+-- Add task-dropping with restore pass\\
+-- Add fixed commitments for college, school and work schedules\\
+-- Add edit task and deadline validation\\
+-- Add desktop GUI: What now and Tasks tabs\\
+-- GUI: add Plan my day and My schedule tabs\\
+-- Core: free-slot rules and needs-going-out flag\\
+-- Add Dear ImGui 1.91.6 to the project\\
+-- Screens: free-slot panel, quiet mode and needs-going-out option\\
+-- Replace STL containers and algorithms with our own DynArray, BinaryHeap and mergeSort
+
+\vspace{4pt}
+\textbf{Source files:} dsa.h (own DSA library), database.h (Database class), scheduler.h/.cpp (compression
+and task-dropping), advisor.h/.cpp (suggestions), commitments.h/.cpp (busy time), timeutil.h (clock and
+dates), main.cpp (CLI), gui.cpp (desktop GUI), test\_scheduler.cpp (test harness), sqlite3.c/.h (SQLite
+amalgamation), third\_party/imgui (Dear ImGui).}
+
+\vspace{0.65cm}
+
+% TESTING
+\sectiontitle{Testing and Validation Status (2 pts)}
+
+\vspace{0.05cm}
+
+\instruction{}
+
+\vspace{0.30cm}
+
+\begin{tabularx}{\textwidth}{
+|>{\raggedright\arraybackslash}p{0.34\textwidth}
+|>{\raggedright\arraybackslash}p{0.31\textwidth}
+|>{\raggedright\arraybackslash}X|
+}
+\hline
+
+\textbf{Test Type} &
+\textbf{Status (Pass/Fail)} &
+\textbf{Notes}
+\\
+\hline
+
+compilation & pass & zero warnings, all files \\
+\hline
+compression at four budgets & pass & matched hand calculation \\
+\hline
+policy comparison & pass & weighted protects priority 5 \\
+\hline
+task-dropping (10 checks) & pass & mandatory never dropped \\
+\hline
+commitments (37 checks) & pass & overlapping blocks merged \\
+\hline
+date and time handling (17 checks) & pass & impossible dates rejected \\
+\hline
+free-slot advisor (12 checks) & pass & quiet in college; fits slot \\
+\hline
+database migration (13 checks) & pass & no rows lost on upgrade \\
+\hline
+own DSA library vs STL & pass & 227,215 operations matched \\
+\hline
+STL-free version vs original & pass & 60,000 cases identical \\
+\hline
+end-to-end CLI & pass & same output and database \\
+\hline
+CLI vs GUI & pass & identical 545-minute plan \\
+\hline
+routines and start times & known limitation & sleep found by name \\
+\hline
+
+\end{tabularx}
+
+\newpage
+\vspace*{0.20cm}
+
+% DELIVERABLES
+\sectiontitle{Deliverables Progress (2 pts)}
+
+\vspace{0.05cm}
+
+\instruction{
+
+}
+
+\vspace{0.25cm}
+
+\answerbox{9.40cm}{Deliverable Status:-\\
+Database schema supporting compression: Completed\\
+SQLite integration and persistence layer: Completed\\
+Equal-split compression policy: Completed\\
+Priority-weighted compression policy: Completed\\
+Infeasibility detection: Completed\\
+Automated test harness and policy comparison: Completed\\
+Self-contained reproducible build: Completed\\
+day\_plan persistence of scheduler output: Completed\\
+Menu-driven CLI: Completed\\
+Task-dropping for infeasible schedules: Completed\\
+Priority queue module: Completed (own BinaryHeap)\\
+Energy-based task matching: Completed\\
+Rule-based suggestion engine: Completed\\
+Version control and CMake build: In Progress (Git complete, CMake completed)\\
+Routine/task separation: completed\\
+Time-slot placement: completed
+
+\vspace{4pt}
+Added beyond the original plan: desktop GUI, fixed commitments, free-slot quiet mode and the own DSA
+library: Completed}
+
+\end{document}
