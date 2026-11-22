@@ -1609,63 +1609,228 @@ void drawHome(Database& db, AppState& s, ImFont* large)
 // ---------------------------------------------------------------
 // Task dialogs
 // ---------------------------------------------------------------
+// A date `days` from today as YYYY-MM-DD (for the quick deadline chips).
+std::string dateAfterDays(int days)
+{
+    std::tm d = tu::localNow();
+    d.tm_mday += days;
+    d.tm_hour  = 12;               // midday, so daylight-saving changes can't shift the date
+    std::mktime(&d);
+    char buf[16];
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d", &d);
+    return buf;
+}
+
+// Five square buttons, 1 to 5, for priority, difficulty and energy.
+// The chosen one is filled in its colour; returns true when it changes.
+bool levelPicker(const char* id, int& value, ImVec4 (*colorOf)(int), const char* const names[6])
+{
+    bool changed = false;
+    float size = ImGui::GetFrameHeight() + 6.0f;
+    ImGui::PushID(id);
+    for (int lv = 1; lv <= 5; ++lv) {
+        if (lv > 1) ImGui::SameLine(0, 6);
+        ImVec2 p  = ImGui::GetCursorScreenPos();
+        ImGui::PushID(lv);
+        if (ImGui::InvisibleButton("##lv", ImVec2(size, size)) && value != lv) { value = lv; changed = true; }
+        bool hovered = ImGui::IsItemHovered();
+        ImGui::PopID();
+        if (hovered && names) ImGui::SetTooltip("%d: %s", lv, names[lv]);
+
+        ImVec4 col = colorOf(lv);
+        bool   on  = (value == lv);
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImVec2 q(p.x + size, p.y + size);
+        dl->AddRectFilled(p, q, on ? rgba(col, 0.22f) : rgba(ImVec4(1, 1, 1, 1), hovered ? 0.08f : 0.04f), 10.0f);
+        dl->AddRect(p, q, on ? rgba(col, 0.95f) : ImGui::GetColorU32(kEdge), 10.0f, 0, on ? 1.5f : 1.0f);
+        char num[4];
+        std::snprintf(num, sizeof(num), "%d", lv);
+        ImVec2 ts = ImGui::CalcTextSize(num);
+        dl->AddText(ImVec2(p.x + (size - ts.x) * 0.5f, p.y + (size - ts.y) * 0.5f),
+                    ImGui::GetColorU32(on ? col : kMuted), num);
+    }
+    if (names) {
+        ImGui::SameLine(0, 14);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextColored(kMuted, "%s", names[clampTo(value, 1, 5)]);
+    }
+    ImGui::PopID();
+    return changed;
+}
+
+ImVec4 levelColorPriority(int lv) { return priorityColor(lv); }
+ImVec4 levelColorEnergy(int lv)   { return energyColor(lv); }
+ImVec4 levelColorDifficulty(int lv)
+{
+    return lv <= 2 ? kGood : lv == 3 ? kAccent : kWarn;
+}
+
+// A small rounded chip that fills a field when clicked.
+bool quickChip(const char* label, bool active)
+{
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 999.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12, ImGui::GetStyle().FramePadding.y));
+    ImGui::PushStyleColor(ImGuiCol_Button,        active ? rgba(kAccent, 0.22f) : rgba(ImVec4(1, 1, 1, 1), 0.05f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, rgba(kAccent, 0.18f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,  rgba(kAccent, 0.30f));
+    ImGui::PushStyleColor(ImGuiCol_Text,          active ? kAccent : kMuted);
+    bool pressed = ImGui::Button(label);
+    ImGui::PopStyleColor(4);
+    ImGui::PopStyleVar(2);
+    return pressed;
+}
+
+// A muted section label inside the dialog, with a hairline under it.
+void dialogSection(unsigned cp, const char* text)
+{
+    ImGui::Spacing();
+    ImGui::TextColored(kAccent, "%s", withIcon(cp, text).c_str());
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    float  w = ImGui::GetContentRegionAvail().x;
+    ImGui::GetWindowDrawList()->AddLine(ImVec2(p.x, p.y), ImVec2(p.x + w, p.y), ImGui::GetColorU32(kEdge));
+    ImGui::Dummy(ImVec2(w, 4.0f));
+}
+
 void drawTaskDialog(Database& db, AppState& s)
 {
-    if (!ImGui::BeginPopupModal("Task", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+    static const char* kPriority[6]   = {"", "Low", "Below normal", "Normal", "High", "Urgent"};
+    static const char* kDifficulty[6] = {"", "Very easy", "Easy", "Medium", "Hard", "Very hard"};
+    static const char* kEnergy[6]     = {"", "Tired is fine", "Low", "Okay", "Energetic", "Fully focused"};
+
+    // The dialog: a warm card in the middle of the window.
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(minOf(760.0f, vp->WorkSize.x - 40.0f), 0), ImGuiCond_Appearing);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,  ImVec2(26, 22));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 18.0f);
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0.085f, 0.080f, 0.090f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Border,  rgba(kAccent, 0.45f));
+    bool open = ImGui::BeginPopupModal("Task", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                                                        ImGuiWindowFlags_NoSavedSettings);
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
+    if (!open) return;
 
     TaskForm& f = s.form;
-    const float lw = 170.0f;   // where the fields start, after the labels
+    const ImGuiStyle& st = ImGui::GetStyle();
 
-    ImGui::TextColored(kAccent, "%s", f.editingId ? withIcon(IconPencil, "Edit task").c_str()
-                                                  : withIcon(IconPlus, "New task").c_str());
-    ImGui::Separator();
-    ImGui::Spacing();
+    // Header: icon, title, and a close button on the right.
+    {
+        ImVec2 wp = ImGui::GetWindowPos();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        dl->PushClipRect(wp, ImVec2(wp.x + ImGui::GetWindowWidth(), wp.y + ImGui::GetWindowHeight()), false);
+        radialGlow(dl, ImVec2(wp.x + ImGui::GetWindowWidth() * 0.85f, wp.y), 260.0f, kAccent, 0.12f);
+        dl->PopClipRect();
+    }
+    float right = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
+    if (gTitleFont) ImGui::PushFont(gTitleFont);
+    ImGui::TextColored(kAccent, "%s", gIcons ? glyph(f.editingId ? IconPencil : IconPlus).c_str() : "");
+    if (gIcons) ImGui::SameLine();
+    ImGui::Text("%s", f.editingId ? "Edit task" : "New task");
+    if (gTitleFont) ImGui::PopFont();
+    ImGui::SameLine(right - (ImGui::GetFrameHeight() + 4.0f));
+    if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere(1);
+    bool closeNow = ghostButton((iconOr(IconTimes, "X") + "##close").c_str(),
+                                ImVec2(ImGui::GetFrameHeight() + 4.0f, ImGui::GetFrameHeight() + 4.0f));
+    ImGui::TextColored(kMuted, "%s", f.editingId ? "Change anything below, then save."
+                                                 : "Tell PrioriTask what it is, how much it matters and how long it takes.");
 
-    fieldLabel("Title", lw);
-    ImGui::SetNextItemWidth(380); ImGui::InputText("##title", &f.title);
-    fieldLabel("Description", lw);
-    ImGui::SetNextItemWidth(380); ImGui::InputText("##desc", &f.description);
-    fieldLabel("Category", lw);
-    ImGui::SetNextItemWidth(380); ImGui::InputTextWithHint("##cat", "Study, Health, Errands...", &f.category);
+    // ---- What ----
+    dialogSection(IconTasks, "WHAT");
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    ImGui::InputTextWithHint("##title", "Task title, e.g. Revise Maths Unit 3", &f.title);
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    ImGui::InputTextWithHint("##desc", "Notes (optional)", &f.description);
+    ImGui::SetNextItemWidth(260);
+    ImGui::InputTextWithHint("##cat", "Category", &f.category);
+    // Quick picks: the usual ones plus categories already in use.
+    {
+        DynArray<std::string> cats;
+        for (const char* c : {"Study", "Health", "Personal"}) cats.push_back(c);
+        for (const Task& t : s.tasks) {
+            if (t.category.empty() || cats.size() >= 7) continue;
+            bool seen = false;
+            for (const std::string& c : cats) if (lowerCase(c) == lowerCase(t.category)) seen = true;
+            if (!seen) cats.push_back(t.category);
+        }
+        for (const std::string& c : cats) {
+            ImGui::SameLine(0, 6);
+            if (ImGui::GetContentRegionAvail().x < ImGui::CalcTextSize(c.c_str()).x + 24.0f) ImGui::NewLine();
+            ImGui::PushID(c.c_str());
+            if (quickChip(c.c_str(), lowerCase(c) == lowerCase(f.category))) f.category = c;
+            ImGui::PopID();
+        }
+    }
 
-    fieldLabel("Priority", lw);
-    ImGui::SetNextItemWidth(220);
-    ImGui::SliderInt("##pri", &f.priority, 1, 5, "%d", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SameLine(); ImGui::TextColored(kMuted, "5 = most important");
-    fieldLabel("Difficulty", lw);
-    ImGui::SetNextItemWidth(220);
-    ImGui::SliderInt("##diff", &f.difficulty, 1, 5, "%d", ImGuiSliderFlags_AlwaysClamp);
-    fieldLabel("Energy needed", lw);
-    ImGui::SetNextItemWidth(220);
-    ImGui::SliderInt("##energy", &f.energy, 1, 5, "%d", ImGuiSliderFlags_AlwaysClamp);
+    // ---- Importance and effort, in two columns ----
+    dialogSection(IconBolt, "IMPORTANCE AND EFFORT");
+    float lw = ImGui::CalcTextSize("Energy needed").x + 36.0f;
+    fieldLabel("Priority", lw);      levelPicker("pri",  f.priority,   levelColorPriority,   kPriority);
+    fieldLabel("Difficulty", lw);    levelPicker("diff", f.difficulty, levelColorDifficulty, kDifficulty);
+    fieldLabel("Energy needed", lw); levelPicker("en",   f.energy,     levelColorEnergy,     kEnergy);
 
-    fieldLabel("Ideal minutes", lw);
-    ImGui::SetNextItemWidth(220);
-    ImGui::InputInt("##est", &f.estimated, 5, 30);
-    f.estimated = clampTo(f.estimated, 1, 1440);
-    fieldLabel("Minimum minutes", lw);
-    ImGui::SetNextItemWidth(220);
-    ImGui::InputInt("##min", &f.minimum, 5, 30);
-    f.minimum = clampTo(f.minimum, 1, f.estimated);   // a floor can't exceed the ideal
+    // ---- Time ----
+    dialogSection(IconClock, "TIME");
+    // Two columns in a table, so both fields line up exactly.
+    if (ImGui::BeginTable("time_cols", 2, ImGuiTableFlags_SizingStretchSame)) {
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();   // same text offset in both cells, so they line up
+        ImGui::TextColored(kMuted, "Ideal length (min)");
+        ImGui::SetNextItemWidth(-12.0f);
+        ImGui::InputInt("##est", &f.estimated, 5, 30);
+        f.estimated = clampTo(f.estimated, 1, 1440);
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextColored(kMuted, "Shortest it can be (min)");
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        ImGui::InputInt("##min", &f.minimum, 5, 30);
+        f.minimum = clampTo(f.minimum, 1, f.estimated);   // a floor can't exceed the ideal
+        ImGui::EndTable();
+    }
+    ImGui::TextColored(kMuted, "On a busy day Plan My Day can shrink it from %d down to %d min.", f.estimated, f.minimum);
 
-    fieldLabel("Deadline", lw);
-    ImGui::SetNextItemWidth(220);
-    ImGui::InputTextWithHint("##deadline", "2026-10-20 18:00", &f.deadline);
+    // ---- Deadline ----
+    dialogSection(IconCalendar, "DEADLINE");
+    ImGui::SetNextItemWidth(250);
+    ImGui::InputTextWithHint("##deadline", "YYYY-MM-DD HH:MM", &f.deadline);
+    struct Quick { const char* label; int days; };
+    static const Quick quick[4] = {{"Today", 0}, {"Tomorrow", 1}, {"In 3 days", 3}, {"Next week", 7}};
+    for (const Quick& q : quick) {
+        ImGui::SameLine(0, 6);
+        std::string d = dateAfterDays(q.days);
+        if (quickChip(q.label, f.deadline == d)) f.deadline = d;
+    }
+    ImGui::SameLine(0, 6);
+    if (quickChip("None", f.deadline.empty())) f.deadline.clear();
+    if (!f.deadline.empty() && !tu::isValidDeadline(f.deadline))
+        ImGui::TextColored(kWarn, "Use 2026-11-30 or 2026-11-30 18:00");
+    else if (!f.deadline.empty() && f.deadline.size() == 10)
+        ImGui::TextColored(kMuted, "No time given, so it's due at 23:59 that day.");
 
-    fieldLabel("", lw);
-    ImGui::Checkbox("Mandatory (never dropped)", &f.mandatory);
-    fieldLabel("", lw);
-    ImGui::Checkbox(withIcon(IconMarker, "Needs me to go out (gym, shopping...)").c_str(), &f.needsOutside);
+    // ---- Rules ----
+    dialogSection(IconCheck, "RULES");
+    ImGui::Checkbox("Must-do: never dropped from the plan", &f.mandatory);
+    ImGui::SameLine(0, 30);
+    ImGui::Checkbox(withIcon(IconMarker, "Needs me to go out").c_str(), &f.needsOutside);
+    tip("Gym, shopping, errands. Hidden during college or work unless you say you can go out.");
 
     if (!f.error.empty()) {
         ImGui::Spacing();
-        ImGui::TextColored(kWarn, "%s", f.error.c_str());
+        ImGui::TextColored(kWarn, "%s", withIcon(IconWarning, f.error.c_str()).c_str());
     }
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-    if (primaryButton(withIcon(IconSave, "Save").c_str(), ImVec2(140, 0))) {
+    // ---- Buttons, on the right ----
+    ImGui::Spacing(); ImGui::Spacing();
+    std::string saveLbl = withIcon(IconSave, f.editingId ? "Save changes" : "Add task");
+    float btnH = ImGui::GetFrameHeight() + 10.0f;
+    float sW   = buttonWidth(saveLbl) + 30.0f, cW = buttonWidth("Cancel") + 30.0f;
+    ImGui::SetCursorPosX(right - sW - cW - st.ItemSpacing.x);
+    if (ghostButton("Cancel", ImVec2(cW, btnH)) || closeNow || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        f.error.clear();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (primaryButton(saveLbl.c_str(), ImVec2(sW, btnH))) {
         f.error.clear();
         if (f.title.empty())
             f.error = "Title cannot be empty.";
@@ -1684,28 +1849,35 @@ void drawTaskDialog(Database& db, AppState& s)
             }
         }
     }
-    ImGui::SameLine();
-    if (ImGui::Button("Cancel", ImVec2(140, 0))) ImGui::CloseCurrentPopup();
 
     ImGui::EndPopup();
 }
 
 void drawDeleteDialog(Database& db, AppState& s)
 {
-    if (!ImGui::BeginPopupModal("Delete task?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,  ImVec2(24, 20));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 16.0f);
+    ImGui::PushStyleColor(ImGuiCol_Border, rgba(kDanger, 0.45f));
+    bool open = ImGui::BeginPopupModal("Delete task?", nullptr,
+                                       ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
+    if (!open) return;
 
-    ImGui::Text("Delete \"%s\" permanently?", s.deleteTitle.c_str());
-    ImGui::TextColored(kMuted, "Its saved plans are removed too.");
+    ImGui::TextColored(kDanger, "%s", withIcon(IconTrash, "Delete task?").c_str());
     ImGui::Spacing();
+    ImGui::Text("\"%s\" will be deleted permanently.", s.deleteTitle.c_str());
+    ImGui::TextColored(kMuted, "Its saved plans are removed too. This can't be undone.");
+    ImGui::Spacing(); ImGui::Spacing();
 
-    if (dangerButton(withIcon(IconTrash, "Delete").c_str(), ImVec2(140, 0))) {
+    float btnH = ImGui::GetFrameHeight() + 8.0f;
+    if (ghostButton("Cancel", ImVec2(140, btnH)) || ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
+    ImGui::SameLine();
+    if (dangerButton(withIcon(IconTrash, "Delete").c_str(), ImVec2(140, btnH))) {
         if (db.deleteTask(s.deleteId)) s.status = "Deleted: " + s.deleteTitle;
         reloadAll(db, s);
         ImGui::CloseCurrentPopup();
     }
-    ImGui::SameLine();
-    if (ImGui::Button("Cancel", ImVec2(140, 0))) ImGui::CloseCurrentPopup();
-
     ImGui::EndPopup();
 }
 
