@@ -7,3 +7,8 @@ prioritask_gui
 gui_test
 imgui.ini
 *.bundle
+
+# local backups and one-off patch scripts
+*_backup/
+add_*.py
+test_scheduler
