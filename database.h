@@ -30,7 +30,12 @@ struct PlanRow {
     int requested = 0;
     int allocated = 0;
 };
-
+// One task in a saved day plan, with its title, for the "Past plans" view.
+struct SavedPlanItem {
+    std::string title;
+    int requested = 0;   // minutes the task asked for
+    int allocated = 0;   // minutes it got that day (0 = dropped)
+};
 // One fixed commitment as stored in the database: college, school,
 // office, tuition, a shift. Kept as plain text here; main.cpp turns it
 // into numbers for the commitments module.
@@ -494,7 +499,32 @@ public:
         sqlite3_finalize(stmt);
         return days;
     }
+        // Everything saved for one day, biggest allocation first. day_plan only
+    // stores task ids, so it is JOINed with tasks to get each title.
+    DynArray<SavedPlanItem> getPlanForDay(const std::string& date) {
+        DynArray<SavedPlanItem> items;
+        const char* sql =
+            "SELECT t.title, p.requested_time, p.allocated_time "
+            "FROM day_plan p JOIN tasks t ON t.task_id = p.task_id "
+            "WHERE p.plan_date = ? "
+            "ORDER BY p.allocated_time DESC;";
 
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            std::cout << "Error: " << sqlite3_errmsg(db) << "\n";
+            return items;
+        }
+        sqlite3_bind_text(stmt, 1, date.c_str(), -1, SQLITE_TRANSIENT);
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            SavedPlanItem it;
+            it.title     = colText(stmt, 0);
+            it.requested = sqlite3_column_int(stmt, 1);
+            it.allocated = sqlite3_column_int(stmt, 2);
+            items.push_back(it);
+        }
+        sqlite3_finalize(stmt);
+        return items;
+    }
     // Removes a task and any saved plan rows that point at it. Both deletes
     // run in one transaction so a failure can never leave day_plan rows
     // referring to a task that no longer exists.
