@@ -424,3 +424,222 @@ Brief Discussion: The logic never touches SQLite, so each algorithm is tested al
 }
 
 \end{frame}
+
+
+% ============================================================
+% SLIDE 7
+% ============================================================
+\begin{frame}{Final Technology Stack}
+
+\begin{columns}[T,totalwidth=\textwidth]
+
+\column{.48\textwidth}
+
+\begin{block}{Software / Technologies}
+\begin{itemize}\itemsep2pt
+    \item Programming: C++17
+    \item Framework: Dear ImGui 1.91.6
+    \item Database: SQLite (compiled in)
+    \item Libraries/APIs: GLFW, OpenGL 3
+    \item OS/Platform: Windows 11, Ubuntu (WSL)
+\end{itemize}
+\end{block}
+
+\column{.48\textwidth}
+
+\begin{block}{Development Infrastructure}
+\begin{itemize}\itemsep2pt
+    \item IDE: VS Code
+    \item Version Control: Git/GitHub
+    \item Testing Tools: own C++ test programs
+    \item Deployment: local desktop app
+    \item Other Tools: g++ 15.2, DB Browser
+\end{itemize}
+\end{block}
+
+\end{columns}
+
+\vfill
+
+\smallnote{
+Brief Discussion: Builds moved from MinGW to Ubuntu (WSL) after antivirus blocked Windows builds.
+}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 8
+% ============================================================
+\begin{frame}{Implementation of PBL Course Concepts}
+
+\scriptsize
+
+\begin{center}
+
+\renewcommand{\arraystretch}{1.25}
+
+\begin{tabularx}{.96\textwidth}
+{@{}>{\bfseries}p{2.8cm}X p{2.8cm}@{}}
+
+\toprule
+Course & Concepts Actually Implemented & Project Module\\
+\midrule
+
+Data Structures in C &
+Own dynamic array, binary heap (priority queue) and merge sort; no STL &
+\texttt{dsa.h}, Scheduler\\
+
+OOPs with C++ &
+Classes, encapsulation, destructor (RAII), class templates, operator overloading &
+Database, \texttt{dsa.h}\\
+
+\midrule
+
+Design \& Analysis of Algorithms &
+Greedy task-dropping with a heap; interval merging; $O(n \log n)$ &
+Scheduler, Commitments\\
+
+DBMS &
+Four tables; keys, CHECK, UNIQUE; transactions; GROUP BY &
+Database\\
+
+\bottomrule
+
+\end{tabularx}
+
+\end{center}
+
+\vfill
+
+\begin{center}
+\colorbox{GEULightBlue}{
+\parbox{.88\textwidth}{
+\centering
+\textbf{Stated honestly:}
+only concepts present in the code are listed; each can be shown in its source file.
+}}
+\end{center}
+
+\smallnote{
+Brief Discussion: Our PBL courses are Data Structures and OOPs with C++; DAA and DBMS show further work.
+}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 9
+% ============================================================
+\begin{frame}{Module-Wise Final Implementation}
+
+\scriptsize
+
+\begin{center}
+
+\renewcommand{\arraystretch}{1.35}
+
+\begin{tabularx}{.96\textwidth}
+{@{}p{2.4cm}X p{2.0cm}p{2.0cm}@{}}
+
+\toprule
+\textbf{Module} &
+\textbf{Implementation} &
+\textbf{Responsible} &
+\textbf{Status}\\
+\midrule
+
+Database &
+4 tables, transactions, migration &
+Purnima &
+Completed\\
+
+Compression, advisor &
+Two shrink policies; task scoring, quiet mode &
+Manisha &
+Completed\\
+
+Task-dropping &
+Heap-based greedy drop, restore pass &
+Yug &
+Completed\\
+
+Commitments, dashboard &
+Busy-time merging; monthly on-time report &
+Purnima &
+Completed\\
+
+CLI and GUI &
+11-option menu, 5-tab desktop app &
+Manisha &
+Completed\\
+
+DSA library &
+Own array, heap and merge sort &
+Yug &
+Completed\\
+
+\bottomrule
+
+\end{tabularx}
+
+\end{center}
+
+\vspace{4mm}
+
+\begin{center}
+\colorbox{GEULightBlue}{
+\parbox{.40\textwidth}{
+\centering
+\textbf{Final Project Completion:}
+ 100\% 
+}}
+\end{center}
+
+\vfill
+
+\smallnote{
+
+}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 10
+% ============================================================
+\begin{frame}{Working System / Prototype Demonstration}
+
+\begin{columns}[T,totalwidth=\textwidth]
+
+\column{.43\textwidth}
+
+\textbf{\color{GEUBlue}Major Working Features}
+
+\begin{itemize}\itemsep3pt
+    \item What now: best task, with reasons
+    \item Plan my day: shrink, then drop
+    \item Quiet mode in college; free slots
+    \item Tasks and weekly commitments
+    \item This month: on-time rate
+\end{itemize}
+
+\column{.53\textwidth}
+
+\begin{block}{System Screenshot / Output}
+
+\centering
+\vspace{11mm}
+
+\includegraphics[width=\linewidth,height=1.9cm,keepaspectratio]{planday.png}
+
+\vspace{11mm}
+
+\end{block}
+
+\end{columns}
+
+\vfill
+
+\smallnote{
+Brief Discussion: Live demo -- add a task, plan the day, check This month.
+}
+
+\end{frame}
