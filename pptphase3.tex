@@ -184,3 +184,243 @@ Graphic Era (Deemed to be University), Dehradun\\[-1mm]
 
 % ============================================================
 % SLIDE 2
+% ============================================================
+\begin{frame}{Team \& Mentor Details}
+
+\begin{columns}[T,totalwidth=\textwidth]
+
+\column{.48\textwidth}
+
+\begin{block}{Team Information}
+\begin{tabular}{@{}ll@{}}
+\textbf{Team ID:} & T-315\\
+\textbf{Semester:} & 3rd\\
+\textbf{Section:} & A, ML4, CYBER\\
+\textbf{Domain:} & CSE
+\end{tabular}
+\end{block}
+
+\column{.48\textwidth}
+
+\begin{block}{Team Members}
+1.\quad Manisha Bisht -- 2510012646\\
+2.\quad Purnima -- 2510012541\\
+3.\quad Yug Bhardwaj -- 2512500006
+\end{block}
+
+\end{columns}
+
+\vspace{2mm}
+
+\begin{block}{Mentor}
+Dr. Hriday Kumar Gupta
+\hfill
+\textbf{Interactions:3} 
+\end{block}
+
+\vfill
+
+\smallnote{
+
+}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 3
+% ============================================================
+\begin{frame}{Project Abstract \& Problem Statement}
+
+\begin{block}{Project Abstract}
+A C++ and SQLite app that shrinks, drops and suggests tasks to fit an overbooked day.
+\end{block}
+
+
+\begin{block}{Problem Statement}
+To-do apps sort tasks; PrioriTask decides how much of each task fits when the day is full.
+\end{block}
+
+\vspace{2mm}
+
+\textbf{\color{GEUBlue}Target Users / Application}
+
+\begin{itemize}\itemsep2pt
+    \item Students and staff with fixed hours
+    \item Offline desktop app: a realistic plan, fewer missed deadlines
+\end{itemize}
+
+\smallnote{
+
+}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 4
+% ============================================================
+\begin{frame}{Objectives \& Final Deliverables}
+
+\begin{columns}[T,totalwidth=\textwidth]
+
+\column{.48\textwidth}
+
+\textbf{\color{GEUBlue}Finalized Objectives}
+
+\begin{enumerate}\itemsep3pt
+    \item Ideal and minimum time per task
+    \item Fit the day with two policies
+    \item Drop optional tasks only if needed
+    \item Suggest tasks by deadline,energy
+    \item Track missed tasks every month
+\end{enumerate}
+
+\column{.48\textwidth}
+
+\textbf{\color{GEUBlue}Final Deliverables}
+
+\begin{itemize}\itemsep3pt
+    \item Desktop GUI and 11-option CLI
+    \item C++17 source code on GitHub
+    \item SQLite database, 4 tables
+    \item Phase-I, II and III reports
+    \item Own DSA library and tests
+\end{itemize}
+
+\end{columns}
+
+\vfill
+
+
+\end{frame}
+
+% ============================================================
+% SLIDE 5
+% ============================================================
+\begin{frame}{Phase-I \& Phase-II Feedback Incorporated}
+
+\scriptsize
+
+\begin{center}
+
+\renewcommand{\arraystretch}{1.35}
+
+\begin{tabularx}{.96\textwidth}
+{@{}p{2.1cm}X X@{}}
+
+\toprule
+\textbf{Phase} &
+\textbf{Feedback / Suggestion} &
+\textbf{Action Taken}\\
+\midrule
+
+Phase-I &
+Correct implementation of C++ classes &
+\texttt{Database} class owns the SQLite connection\\
+
+Phase-I &
+Extend the core idea of the project &
+Added dropping, advisor, commitments, dashboard\\
+
+Phase-I &
+Scheduler output overwrote task definitions &
+Separate \texttt{day\_plan} table per day\\
+
+Phase-II &
+GUI headers should be in the project &
+Dear ImGui added to \texttt{third\_party/}\\
+
+
+\bottomrule
+
+\end{tabularx}
+
+\end{center}
+
+\vfill
+
+\begin{block}{Final Improvement}
+From a compression engine to a full desktop app with dropping, advice and a dashboard.
+\end{block}
+
+\smallnote{
+
+}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 6
+% ============================================================
+\begin{frame}{Final System Architecture}
+
+\begin{center}
+
+\begin{tikzpicture}[
+node distance=7mm,
+box/.style={
+rectangle,
+rounded corners,
+draw=GEUBlue,
+fill=GEULightBlue,
+minimum width=2.05cm,
+minimum height=9mm,
+align=center,
+font=\small
+},
+arrow/.style={
+-{Latex[length=2mm]},
+thick,
+draw=GEUBlue
+}
+]
+
+\node[box] (a) {User\\(CLI / GUI)};
+\node[box,right=of a] (b) {Interface\\main, gui};
+\node[box,right=of b] (c) {SQLite\\tasks.db};
+\node[box,right=of c] (d) {Logic\\modules};
+\node[box,right=of d] (e) {Plan, advice,\\report};
+
+\draw[arrow] (a)--(b);
+\draw[arrow] (b)--(c);
+\draw[arrow] (c)--(d);
+\draw[arrow] (d)--(e);
+
+\end{tikzpicture}
+
+\end{center}
+
+\vspace{4mm}
+
+\begin{columns}[T,totalwidth=\textwidth]
+
+\column{.48\textwidth}
+
+\textbf{\color{GEUBlue}Major Components}
+
+\begin{itemize}\itemsep2pt
+    \item \texttt{database.h}: 4-table database
+    \item Scheduler, advisor, monthly report
+    \item \texttt{dsa.h}: own array, heap, sort
+    \item CLI and Dear ImGui desktop GUI
+\end{itemize}
+
+\column{.48\textwidth}
+
+\textbf{\color{GEUBlue}System Flow}
+
+\begin{itemize}\itemsep2pt
+    \item Tasks, commitments, energy
+    \item Shrink, drop, score, merge
+    \item \texttt{tasks.db}, saved in transactions
+    \item Plan, suggestions, monthly report
+\end{itemize}
+
+\end{columns}
+
+\vfill
+
+\smallnote{
+Brief Discussion: The logic never touches SQLite, so each algorithm is tested alone.
+}
+
+\end{frame}
