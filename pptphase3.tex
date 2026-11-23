@@ -643,3 +643,389 @@ Brief Discussion: Live demo -- add a task, plan the day, check This month.
 }
 
 \end{frame}
+
+
+% ============================================================
+% SLIDE 11
+% ============================================================
+\begin{frame}{Data / Database / Backend Implementation}
+
+\begin{columns}[T,totalwidth=\textwidth]
+
+\column{.48\textwidth}
+
+\textbf{\color{GEUBlue}Data / Database}
+
+\begin{itemize}\itemsep3pt
+    \item SQLite, one file: \texttt{tasks.db}
+    \item Relational schema with keys and CHECKs
+    \item tasks, day\_plan, settings, commitments
+    \item Prepared statements; transactions
+    \item Dates, ranges, minimum $\le$ ideal
+\end{itemize}
+
+\column{.48\textwidth}
+
+\textbf{\color{GEUBlue}Backend / Core Logic}
+
+\begin{itemize}\itemsep3pt
+    \item Shrink, drop, score, merge busy time
+    \item No network API: fully offline
+    \item Heap-based greedy; merge sort
+    \item Single local user; no SQL injection
+    \item Rollback on failure; input re-asked
+\end{itemize}
+
+\end{columns}
+
+\vfill
+
+\smallnote{
+Brief Discussion: A plan is saved in one transaction, so a half-saved plan can never exist.
+}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 12
+% ============================================================
+\begin{frame}{Testing \& Validation}
+
+\scriptsize
+
+\begin{center}
+
+\renewcommand{\arraystretch}{1.35}
+
+\begin{tabularx}{.96\textwidth}
+{@{}p{2.0cm}X X p{1.4cm}@{}}
+
+\toprule
+Test Type &
+Expected Result &
+Observed Result &
+Status\\
+\midrule
+
+Unit &
+Compression: total = budget, none below minimum &
+Matched hand calculation, 4 budgets &
+Pass\\
+
+Integration &
+Old database upgraded safely &
+13 checks passed; no rows lost &
+Pass\\
+
+System &
+Same plan from CLI and GUI &
+Identical 545-minute plan &
+Pass\\
+
+DSA vs STL &
+Same results as the STL version &
+60,000 random cases identical &
+Pass\\
+
+\bottomrule
+
+\end{tabularx}
+
+\end{center}
+
+\vspace{3mm}
+
+\begin{block}{Validation Summary}
+Each objective has its own tests: dropping (10 checks), commitments (37), dates (17), free slots (12),
+monthly report (19), migration (13).
+\end{block}
+
+\smallnote{
+Brief Discussion: Expected values were calculated by hand before each test was run.
+}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 13
+% ============================================================
+\begin{frame}{Results \& Performance Analysis}
+
+\begin{columns}[T,totalwidth=\textwidth]
+
+\column{.48\textwidth}
+
+\textbf{\color{GEUBlue}Key Results}
+
+\begin{itemize}\itemsep3pt
+    \item Weighted: priority 5 loses 3 min, not 6
+    \item 500 min: 85 min short at minimums
+    \item Monthly on-time rate, missed tasks
+    \item Own DSA = STL on 227,215 operations
+\end{itemize}
+
+\column{.48\textwidth}
+
+\begin{block}{Graph / Result Evidence}
+
+\centering
+\vspace{10mm}
+
+\includegraphics[width=\linewidth,height=2.1cm,keepaspectratio]{month.png}
+
+\vspace{10mm}
+
+\end{block}
+
+\end{columns}
+
+\vfill
+
+\smallnote{
+Brief Discussion: The 500-minute result led to task-dropping.
+}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 14
+% ============================================================
+\begin{frame}{GitHub Repository \& Development Evidence}
+
+\begin{columns}[T,totalwidth=\textwidth]
+
+\column{.45\textwidth}
+
+\textbf{\color{GEUBlue}Repository Details}
+
+\begin{itemize}\itemsep3pt
+    \item Repository:\\ {\footnotesize github.com/manishabishtsht/Prioritask}
+    \item Branch: main
+    \item README.md: present
+    \item Contributors: \placeholder{manishabishtsht, purnimabyte,yugbh1}
+    \item Documentation: Phase reports
+\end{itemize}
+
+\column{.51\textwidth}
+
+\textbf{\color{GEUBlue}Development Evidence}
+
+
+\end{columns}
+
+\vfill
+
+\begin{center}
+\colorbox{GEULightBlue}{
+\parbox{.88\textwidth}{
+\centering
+\textbf{Development evidence:}
+every feature, from the first CLI to the dashboard, is its own commit.
+}}
+\end{center}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 15
+% ============================================================
+\begin{frame}{Individual Contribution}
+
+\scriptsize
+
+\begin{center}
+
+\renewcommand{\arraystretch}{1.35}
+
+\begin{tabularx}{.96\textwidth}
+{@{}p{1.8cm}p{1.8cm}X p{1.5cm}@{}}
+
+\toprule
+Member &
+Role &
+Final Technical Contribution &
+Commits\\
+\midrule
+
+Manisha Bisht &
+Team lead, interface &
+Compression policies, menu-driven CLI, desktop GUI, rule-based advisor &
+\placeholder{XX}\\
+
+Purnima Choudhary &
+Database lead &
+Schema and plan saving, commitments, schema migration, monthly dashboard &
+\placeholder{XX}\\
+
+Yug Bhardwaj &
+Algorithms lead &
+Task-dropping with a heap, own DSA library, test programs, Git repository &
+\placeholder{XX}\\
+
+\bottomrule
+
+\end{tabularx}
+
+\end{center}
+
+\vspace{3mm}
+
+
+\smallnote{
+Brief Discussion: Commit counts are taken from \texttt{git shortlog -sn} on the shared repository.
+}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 16
+% ============================================================
+\begin{frame}{Challenges, Limitations \& Lessons Learned}
+
+\begin{columns}[T,totalwidth=\textwidth]
+
+\column{.48\textwidth}
+
+\textbf{\color{GEUBlue}Challenges \& Solutions}
+
+\begin{itemize}\itemsep3pt
+    \item Antivirus blocked builds: used WSL
+    \item New column: automatic migration
+    \item No STL: 60,000 random checks
+\end{itemize}
+
+\vspace{2mm}
+
+\textbf{\color{GEUBlue}Current Limitations}
+
+\begin{itemize}\itemsep2pt
+    \item No start times yet
+    \item Greedy dropping not always optimal
+\end{itemize}
+
+\column{.48\textwidth}
+
+\textbf{\color{GEUBlue}Technical Learning}
+
+\begin{itemize}\itemsep3pt
+    \item Separate logic from storage
+    \item How heaps and arrays work inside
+    \item Transactions and time zones in SQL
+\end{itemize}
+
+\vspace{2mm}
+
+\textbf{\color{GEUBlue}Team Learning}
+
+\begin{itemize}\itemsep2pt
+    \item Merging two Git histories
+    \item Expected results before testing
+\end{itemize}
+
+\end{columns}
+
+\vfill
+
+\smallnote{
+
+}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 17
+% ============================================================
+\begin{frame}{Final Outcomes, Applications \& Future Scope}
+
+\begin{columns}[T,totalwidth=\textwidth]
+
+\column{.32\textwidth}
+
+\textbf{\color{GEUBlue}Final Outcomes}
+
+\begin{itemize}\itemsep3pt
+    \item Working app, GUI + CLI
+    \item Two policies, dropping
+    \item Own DSA, no STL
+\end{itemize}
+
+\column{.32\textwidth}
+
+\textbf{\color{GEUBlue}Applications}
+
+\begin{itemize}\itemsep3pt
+    \item Students in college
+    \item Office and shift staff
+    \item Overbooked days
+\end{itemize}
+
+\column{.32\textwidth}
+
+\textbf{\color{GEUBlue}Future Scope}
+
+\begin{itemize}\itemsep3pt
+    \item Routines, start times
+    \item Optimal knapsack drop
+    \item Learn real task times
+\end{itemize}
+
+\end{columns}
+
+\vspace{5mm}
+
+\begin{block}{Tangible Project Outcome}
+A working, tested prototype: desktop and CLI app, SQLite database, source code on GitHub,
+and test programs checked against hand calculations.
+\end{block}
+
+\end{frame}
+
+% ============================================================
+% SLIDE 18
+% ============================================================
+\begin{frame}{References \& Project Resources}
+
+\begin{columns}[T,totalwidth=\textwidth]
+
+\column{.53\textwidth}
+
+\textbf{\color{GEUBlue}References}
+
+\begin{enumerate}\itemsep3pt
+    \item Buttazzo et al., Elastic Scheduling, IEEE Trans. Computers, 2002
+    \item Buttazzo et al., Elastic Task Model, IEEE RTSS, 1998
+    \item Cormen et al., Introduction to Algorithms, MIT Press
+    \item SQLite and Dear ImGui documentation
+    \item ISO/IEC 14882:2017 (C++17)
+\end{enumerate}
+
+\column{.43\textwidth}
+
+\textbf{\color{GEUBlue}Project Resources}
+
+\begin{itemize}\itemsep3pt
+    \item GitHub:\\ {\scriptsize github.com/manishabishtsht/Prioritask}
+    \item Demo: live, on the laptop
+    \item Dataset: NA
+    \item Documentation: Phase reports
+\end{itemize}
+
+\vfill
+
+\begin{center}
+
+\colorbox{GEUBlue}{
+\parbox{.82\textwidth}{
+\centering
+\color{white}
+\Large\textbf{Thank You}\\[1mm]
+\normalsize Questions \& Discussion
+}}
+
+\end{center}
+
+\end{columns}
+
+\end{frame}
+
+\end{document}
